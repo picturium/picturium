@@ -15,12 +15,12 @@ impl Default for Thumbnail {
 
 impl Thumbnail {
 
-    pub fn from(value: &Option<String>) -> Option<Self> {
+    pub fn from(value: &Option<String>) -> Self {
 
         // Format: page,dpi
         let value = match value {
             Some(value) => value,
-            None => return None
+            None => return Self::default()
         };
 
         let parts: Vec<&str> = value.split(',').collect();
@@ -30,9 +30,9 @@ impl Thumbnail {
             None => Self::default().page
         };
 
-        Some(Thumbnail {
+        Thumbnail {
             page
-        })
+        }
 
     }
 

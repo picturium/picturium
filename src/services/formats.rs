@@ -35,7 +35,8 @@ pub fn check_supported_input_formats(path: &Path) -> Result<(), ()> {
     match extension.as_str() {
         "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" | "tif" | "tiff" | "ico" | "svg" | // Raster formats
         "heic" | "heif" | "jp2" | "jpm" | "jpx" | "jpf" | "avif" | "avifs" | // Modern raster formats
-        "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" // Document formats
+        // "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" // Document formats
+        "pdf" // Document formats
         => Ok(()),
         _ => Err(())
     }
@@ -66,16 +67,17 @@ pub fn determine_output_format(accept: Option<&HeaderValue>) -> OutputFormat {
 
 }
 
-// pub fn is_thumbnail_format(path: &Path) -> bool {
-//
-//     let extension = match get_extension(path) {
-//         Ok(extension) => extension,
-//         Err(_) => return false
-//     };
-//
-//     match extension.as_str() {
-//         "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" => true,
-//         _ => false
-//     }
-//
-// }
+pub fn is_thumbnail_format(path: &Path) -> bool {
+
+    let extension = match get_extension(path) {
+        Ok(extension) => extension,
+        Err(_) => return false
+    };
+
+    match extension.as_str() {
+        "pdf" => true,
+        // "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" => true,
+        _ => false
+    }
+
+}

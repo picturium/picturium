@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::thread;
 
 use actix_files::NamedFile;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
@@ -11,6 +12,7 @@ use crate::cache;
 
 pub mod formats;
 pub mod vips;
+pub mod scheduler;
 
 #[get("{path:.*}")]
 pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashMap<String, String>>, raw_url_parameters: Query<RawUrlParameters>) -> impl Responder {
@@ -48,7 +50,7 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
         };
     }
     
-    let output = match pipeline::run(url_parameters, output_format).await {
+    let output = match pipeline::run(&url_parameters, output_format).await {
         Ok(output) => output,
         Err(e) => {
             error!("Failed to process image: {}", e.0);
@@ -57,7 +59,11 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
     };
 
     match NamedFile::open(output) {
-        Ok(named_file) => NamedFile::into_response(named_file.prefer_utf8(true), &req),
+        Ok(named_file) => {
+            let path = url_parameters.path.to_owned();
+            thread::spawn(move || cache::index(cache_path, path));
+            NamedFile::into_response(named_file.prefer_utf8(true), &req)
+        },
         Err(_) => HttpResponse::InternalServerError().into()
     }
 

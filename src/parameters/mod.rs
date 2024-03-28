@@ -65,7 +65,7 @@ pub struct UrlParameters<'a> {
     pub height: Option<u16>, // 
     pub quality: Quality, // 
     pub crop: Option<Crop>,
-    pub thumbnail: Option<Thumbnail>,
+    pub thumbnail: Thumbnail,
     pub original: bool, // 
     pub rotate: Rotate, // 
     pub background: Option<Background>

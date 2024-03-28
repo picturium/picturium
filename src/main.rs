@@ -38,6 +38,8 @@ async fn main() -> std::io::Result<()> {
             WriteLogger::new(log_level, Config::default(), File::create("picturium.log").unwrap()),
         ]
     ).unwrap();
+    
+    let _scheduler_handle = services::scheduler::schedule();
 
     let available_threads = num_cpus::get();
     let app = VipsApp::new("libvips instance", false).expect("Cannot initialize libvips instance");
