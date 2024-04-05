@@ -64,13 +64,15 @@ fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipel
 
 fn finalize_jpg(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<PathBuf> {
 
-    let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Webp);
+    let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Jpg);
 
     if ops::jpegsave_with_opts(image, &cache_path, &JpegsaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
-            Quality::Default => 79,
+            Quality::Default => 75,
         },
+        optimize_coding: true,
+        strip: true,
         ..JpegsaveOptions::default()
     }).is_err() {
         error!("Failed to save JPG image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
