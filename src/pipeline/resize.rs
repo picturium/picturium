@@ -1,5 +1,5 @@
 use libvips::{ops, VipsImage};
-use libvips::ops::{Interesting, Size, ThumbnailImageOptions};
+use libvips::ops::{Intent, Interesting, Size, ThumbnailImageOptions};
 use log::error;
 
 use crate::parameters::UrlParameters;
@@ -14,8 +14,8 @@ pub(crate) async fn run(image: &VipsImage, url_parameters: &UrlParameters<'_>) -
         height,
         size: Size::Down,
         crop: Interesting::Centre,
-        import_profile: "sRGB".into(),
-        export_profile: "sRGB".into(),
+        import_profile: "".into(),
+        export_profile: "".into(),
         ..ThumbnailImageOptions::default()
     });
 

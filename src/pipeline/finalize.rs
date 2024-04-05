@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use libvips::{ops, VipsImage};
-use libvips::ops::{JpegsaveOptions, WebpsaveOptions};
+use libvips::ops::{ForeignWebpPreset, JpegsaveOptions, WebpsaveOptions};
 use log::error;
 
 use crate::cache;
@@ -48,6 +48,10 @@ fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipel
             Quality::Custom(quality) => quality as i32,
             Quality::Default => 70,
         },
+        strip: true,
+        preset: ForeignWebpPreset::Photo,
+        reduction_effort: 5,
+        smart_subsample: true,
         ..WebpsaveOptions::default()
     }).is_err() {
         error!("Failed to save WEBP image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
