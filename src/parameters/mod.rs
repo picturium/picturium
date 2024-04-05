@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use log::info;
 
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +46,7 @@ impl RawUrlParameters {
         }
 
         let mut url_parameters: Vec<(&String, &String)> = url_parameters.iter().filter(|(k, _)| *k != "token").collect();
-        url_parameters.sort_by(|a, b| b.0.cmp(a.0));
+        url_parameters.sort_by(|a, b| a.0.cmp(b.0));
 
         let data: String = url_parameters.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<String>>().join("&");
         let data = format!("{}?{}", path, data);
