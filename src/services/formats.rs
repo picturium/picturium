@@ -81,3 +81,14 @@ pub fn is_thumbnail_format(path: &Path) -> bool {
     }
 
 }
+
+pub fn is_svg(path: &Path) -> bool {
+
+    let extension = match get_extension(path) {
+        Ok(extension) => extension,
+        Err(_) => return false
+    };
+
+    extension == "svg"
+
+}

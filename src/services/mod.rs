@@ -3,6 +3,7 @@ use std::thread;
 
 use actix_files::NamedFile;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
+use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
 use actix_web::web::{Path, Query};
 use log::error;
 
@@ -39,7 +40,12 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
     let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
 
     if cache::is_cached(&cache_path, &url_parameters) {
-        return NamedFile::open(cache_path).unwrap().into_response(&req);
+        return NamedFile::open(cache_path).unwrap().set_content_disposition(
+            ContentDisposition {
+                disposition: DispositionType::Inline,
+                parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
+            }
+        ).into_response(&req);
     }
 
     // Serve original image
@@ -60,9 +66,18 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
 
     match NamedFile::open(output) {
         Ok(named_file) => {
+
+            let named_file = named_file.set_content_disposition(
+                ContentDisposition {
+                    disposition: DispositionType::Inline,
+                    parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
+                }
+            );
+
             let path = url_parameters.path.to_owned();
             thread::spawn(move || cache::index(cache_path, path));
             NamedFile::into_response(named_file.prefer_utf8(true), &req)
+
         },
         Err(_) => HttpResponse::InternalServerError().into()
     }
