@@ -42,13 +42,13 @@ pub(crate) fn get_dimensions(image: &VipsImage, url_parameters: &UrlParameters<'
     let ratio = original_width as f64 / original_height as f64;
 
     if width.is_none() {
-        width = Some((height.unwrap() as f64 * ratio) as u16);
+        width = Some((height.unwrap() as f64 * ratio).round() as u16);
     }
 
     if height.is_none() {
-        height = Some((width.unwrap() as f64 / ratio) as u16);
+        height = Some((width.unwrap() as f64 / ratio).round() as u16);
     }
 
     (width.unwrap().into(), height.unwrap().into())
-    
+
 }
