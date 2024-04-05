@@ -12,7 +12,7 @@ pub(crate) async fn run(image: &VipsImage, url_parameters: &UrlParameters<'_>) -
     let (original_width, original_height) = get_original_dimensions(image);
 
     let ratio = original_width as f64 / original_height as f64;
-    let width = width as f64 * ratio;
+    let width = width as f64 * ratio * 1.1;
 
     match ops::thumbnail(&url_parameters.path.to_string_lossy(), width.ceil() as i32) {
         Ok(image) => Ok(image),
