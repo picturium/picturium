@@ -49,7 +49,7 @@ fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipel
             Quality::Default => 70,
         },
         strip: true,
-        preset: ForeignWebpPreset::Photo,
+        preset: ForeignWebpPreset::Drawing,
         reduction_effort: 5,
         smart_subsample: true,
         ..WebpsaveOptions::default()
