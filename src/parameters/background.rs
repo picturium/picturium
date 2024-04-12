@@ -1,22 +1,35 @@
 use log::error;
 use serde::Serialize;
 
-#[derive(Default, Debug, PartialEq, Serialize)]
-pub struct Background(u8, u8, u8, u8);
+const COLORS: [&str; 3] = ["transparent", "black", "white"];
+
+#[derive(Default, Clone, Debug, PartialEq, Serialize)]
+pub struct Background(pub u8, pub u8, pub u8, pub u8);
 
 impl Background {
+    pub fn is_transparent(&self) -> bool {
+        self.3 == 0
+    }
+    
     pub fn from(value: &Option<String>) -> Option<Background> {
 
-        // Format: bg=#rrggbb[aa] or bg=r,g,b[,a]
+        // Format: bg=#rrggbb[aa] or bg=r,g,b[,a] or bg=transparent
         let value = match value {
             Some(value) => value,
             None => return None
         };
 
-        match value.starts_with('#') {
-            true => {
-                let value = value.trim_start_matches('#');
-                
+        if COLORS.contains(&value.as_str()) {
+            return match value.as_str() {
+                "transparent" => Some(Background(0, 0, 0, 0)),
+                "black" => Some(Background(0, 0, 0, 255)),
+                "white" => Some(Background(255, 255, 255, 255)),
+                _ => None
+            };
+        }
+
+        match value.contains(',') {
+            false => {
                 if value.len() != 6 && value.len() != 8 {
                     error!("Invalid background format: {value}");
                     return None;
@@ -61,7 +74,7 @@ impl Background {
 
                 Some(Background(r, g, b, a))
             },
-            false => {
+            true => {
                 let parts: Vec<&str> = value.split(',').collect();
 
                 if parts.len() < 3 || parts.len() > 4 {
@@ -109,6 +122,12 @@ impl Background {
             }
         }
         
+    }
+}
+
+impl From<&Background> for Vec<f64> {
+    fn from(value: &Background) -> Self {
+        vec![value.0 as f64, value.1 as f64, value.2 as f64, value.3 as f64]
     }
 }
 

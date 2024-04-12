@@ -19,7 +19,7 @@ _Fast and caching media server for processing images, generating thumbnails and 
 **URL GET parameters**
 - `w` (int): width of the output image in pixels
 - `h` (int): height of the output image in pixels
-- `q` (int): quality of the output image in percent (default: JPEG - 79%, WEBP - 70%)
+- `q` (int): quality of the output image in percent (default: JPEG - 75%, WEBP - 70%)
 - `dpr` (int): device pixel ratio, multiplies `w` and `h` by itself
 - `crop` (string): crop parameters in format `crop=aspect_ratio,width,height,gravity,offset_x,offset_y`
     - `aspect_ratio`:
@@ -51,9 +51,10 @@ _Fast and caching media server for processing images, generating thumbnails and 
     - `180`|`bottom-up`|`upside-down`: rotate image upside down by 180 degrees
     - `270`|`right`|`clockwise`: rotate image right by 90 degrees
 - `bg`: apply background color to transparent image, colors can be specified in different formats:
-    - hexadecimal format (e.g. `#ffffff`, `#7a7ad3`)
+    - hexadecimal format (e.g. `#ffffff`, `#7a7ad3`, `#000000ff`)
     - RGB matrix (e.g. `255,124,64`)
     - RGBA matrix (e.g. `255,124,64,255`)
+    - predefined value (`transparent`|`black`|`white`)
  
 **Example URL:**
 The original image will be processed, rotated left by 90 degrees, resized to be 320px wide while keeping the original aspect ratio, saved with 50% quality in a format (WEBP or JPEG) supported by the requesting web browser.

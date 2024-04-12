@@ -52,6 +52,11 @@ fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipel
         preset: ForeignWebpPreset::Drawing,
         reduction_effort: 5,
         smart_subsample: true,
+        background: match &url_parameters.background {
+            Some(background) => Vec::from(background)[0..3].to_vec(),
+            None => Vec::new()
+        },
+        alpha_q: 50,
         ..WebpsaveOptions::default()
     }).is_err() {
         error!("Failed to save WEBP image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
@@ -73,6 +78,10 @@ fn finalize_jpg(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
         },
         optimize_coding: true,
         strip: true,
+        background: match &url_parameters.background {
+            Some(background) => Vec::from(background)[0..3].to_vec(),
+            None => Vec::new()
+        },
         ..JpegsaveOptions::default()
     }).is_err() {
         error!("Failed to save JPG image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());

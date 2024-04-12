@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::path::Path;
 use actix_web::http::header::HeaderValue;
 
+#[derive(Debug, PartialEq)]
 pub enum OutputFormat {
     // Avif,
     Webp,
@@ -90,5 +91,16 @@ pub fn is_svg(path: &Path) -> bool {
     };
 
     extension == "svg"
+
+}
+
+pub fn supports_transparency(path: &Path) -> bool {
+
+    let extension = match get_extension(path) {
+        Ok(extension) => extension,
+        Err(_) => return false
+    };
+
+    !matches!(extension.as_str(), "jpg" | "jpeg")
 
 }

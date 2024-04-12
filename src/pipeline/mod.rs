@@ -1,8 +1,7 @@
 use std::path::PathBuf;
-use libvips::ops::icc_transform;
 
 use crate::parameters::{Rotate, UrlParameters};
-use crate::services::formats::{is_svg, OutputFormat};
+use crate::services::formats::{is_svg, supports_transparency, OutputFormat};
 
 mod thumbnail;
 mod rotate;
@@ -10,6 +9,7 @@ mod resize;
 mod crop;
 mod finalize;
 mod rasterize;
+mod background;
 
 pub type PipelineResult<T> = Result<T, PipelineError>;
 
@@ -36,6 +36,10 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
 
     if url_parameters.rotate != Rotate::No {
         image = rotate::run(&image, url_parameters).await?;
+    }
+
+    if supports_transparency(url_parameters.path) && output_format != OutputFormat::Jpg {
+        image = background::run(&image, url_parameters).await?;
     }
 
     finalize::run(&image, url_parameters, &output_format).await
