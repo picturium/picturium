@@ -41,9 +41,8 @@ async fn main() -> std::io::Result<()> {
     
     let _scheduler_handle = services::scheduler::schedule();
 
-    let available_threads = num_cpus::get();
     let app = VipsApp::new("libvips instance", false).expect("Cannot initialize libvips instance");
-    app.concurrency_set(available_threads as i32 / 2);
+    app.concurrency_set(num_cpus::get() as i32);
 
     HttpServer::new(|| {
 
