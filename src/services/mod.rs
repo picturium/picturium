@@ -27,19 +27,27 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
 
     let url_parameters = UrlParameters::new(&path, raw_url_parameters.into_inner());
 
-    // Check if the input format is supported
-    if formats::check_supported_input_formats(url_parameters.path).is_err() {
-        return HttpResponse::BadRequest().body("Unsupported input format");
-    }
-
-    // Check if original image exists
+    // Check if original file exists
     if !url_parameters.path.exists() {
         return HttpResponse::NotFound().into();
+    }
+
+    // Serve original image or file
+    if url_parameters.original || formats::check_supported_input_formats(url_parameters.path).is_err() {
+        return match NamedFile::open(url_parameters.path) {
+            Ok(named_file) => {
+                let mut response = NamedFile::into_response(named_file.prefer_utf8(true), &req);
+                response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
+                response
+            },
+            Err(_) => HttpResponse::BadRequest().into()
+        };
     }
 
     let output_format = formats::determine_output_format(req.headers().get("Accept"));
     let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
 
+    // Return from cache
     if cache::is_cached(&cache_path, &url_parameters) {
         let mut response = NamedFile::open(cache_path).unwrap().set_content_disposition(
             ContentDisposition {
@@ -51,19 +59,8 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
         response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
         return response;
     }
-
-    // Serve original image
-    if url_parameters.original {
-        return match NamedFile::open(url_parameters.path) {
-            Ok(named_file) => {
-                let mut response = NamedFile::into_response(named_file.prefer_utf8(true), &req);
-                response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
-                response
-            },
-            Err(_) => HttpResponse::BadRequest().into()
-        };
-    }
     
+    // Process image
     let output = match pipeline::run(&url_parameters, output_format).await {
         Ok(output) => output,
         Err(e) => {
