@@ -21,3 +21,4 @@ num_cpus = "1.16.0"
 xxhash-rust = { version = "0.8.10", features = ["xxh3"] }
 clokwerk = "0.4.0"
 walkdir = "2.5.0"
+h2 = "0.4.4"
