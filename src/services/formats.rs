@@ -1,10 +1,11 @@
+use std::env;
 use std::fmt::Display;
 use std::path::Path;
 use actix_web::http::header::HeaderValue;
 
 #[derive(Debug, PartialEq)]
 pub enum OutputFormat {
-    // Avif,
+    Avif,
     Webp,
     Jpg
 }
@@ -12,7 +13,7 @@ pub enum OutputFormat {
 impl Display for OutputFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            // OutputFormat::Avif => write!(f, "avif"),
+            OutputFormat::Avif => write!(f, "avif"),
             OutputFormat::Webp => write!(f, "webp"),
             OutputFormat::Jpg => write!(f, "jpg")
         }
@@ -56,9 +57,9 @@ pub fn determine_output_format(accept: Option<&HeaderValue>) -> OutputFormat {
         Err(_) => return OutputFormat::Webp
     };
 
-    // if accept.contains("image/avif") {
-    //     return OutputFormat::Avif;
-    // }
+    if env::var("AVIF_ENABLE").unwrap_or("false".to_string()) == "true" && accept.contains("image/avif") {
+        return OutputFormat::Avif;
+    }
 
     if accept.contains("image/webp") {
         return OutputFormat::Webp;

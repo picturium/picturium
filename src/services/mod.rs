@@ -1,12 +1,12 @@
 use std::collections::HashMap;
-use std::thread;
+use std::{env, thread};
 
 use actix_files::NamedFile;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use actix_web::http::header;
 use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
 use actix_web::web::{Path, Query};
-use log::error;
+use log::{debug, error};
 
 use crate::parameters::{RawUrlParameters, UrlParameters};
 use crate::pipeline;
@@ -47,19 +47,25 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
     let output_format = formats::determine_output_format(req.headers().get("Accept"));
     let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
 
+    let cache_enable = env::var("CACHE_ENABLE").unwrap_or("true".to_string()) == "true";
+
     // Return from cache
-    if cache::is_cached(&cache_path, &url_parameters) {
+    if cache_enable && cache::is_cached(&cache_path, &url_parameters) {
+        debug!("Using cache @{cache_path}");
+
         let mut response = NamedFile::open(cache_path).unwrap().set_content_disposition(
             ContentDisposition {
                 disposition: DispositionType::Inline,
                 parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
             }
         ).into_response(&req);
-    
+
         response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
         return response;
     }
-    
+
+    debug!("Running pipeline for @{cache_path}");
+
     // Process image
     let output = match pipeline::run(&url_parameters, output_format).await {
         Ok(output) => output,
