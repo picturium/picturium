@@ -19,7 +19,7 @@ impl Display for OutputFormat {
     }
 }
 
-fn get_extension(path: &Path) -> Result<String, ()> {
+pub fn get_extension(path: &Path) -> Result<String, ()> {
     match path.extension() {
         Some(e) => match e.to_str() {
             Some(e) => Ok(e.to_lowercase()),
@@ -69,11 +69,8 @@ pub fn determine_output_format(accept: Option<&HeaderValue>) -> OutputFormat {
 }
 
 pub fn is_thumbnail_format(path: &Path) -> bool {
-
-    let extension = match get_extension(path) {
-        Ok(extension) => extension,
-        Err(_) => return false
-    };
+    
+    let extension = get_extension(path).unwrap_or_else(|_| String::new());
 
     match extension.as_str() {
         "pdf" => true,
@@ -84,23 +81,11 @@ pub fn is_thumbnail_format(path: &Path) -> bool {
 }
 
 pub fn is_svg(path: &Path) -> bool {
-
-    let extension = match get_extension(path) {
-        Ok(extension) => extension,
-        Err(_) => return false
-    };
-
+    let extension = get_extension(path).unwrap_or_else(|_| String::new());
     extension == "svg"
-
 }
 
 pub fn supports_transparency(path: &Path) -> bool {
-
-    let extension = match get_extension(path) {
-        Ok(extension) => extension,
-        Err(_) => return false
-    };
-
+    let extension = get_extension(path).unwrap_or_else(|_| String::new());
     !matches!(extension.as_str(), "jpg" | "jpeg")
-
 }

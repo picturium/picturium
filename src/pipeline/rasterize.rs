@@ -1,20 +1,26 @@
 use libvips::{ops, VipsImage};
+use libvips::ops::{Intent, Interesting, ThumbnailOptions};
+use log::debug;
 
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::pipeline::resize::{get_dimensions, get_original_dimensions};
+use crate::pipeline::resize::get_rasterize_dimensions;
 use crate::services::vips::get_error_message;
 
 // Rasterize SVG image to bitmap
-pub(crate) async fn run(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
+pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
-    let (width, _) = get_dimensions(image, url_parameters);
-    let (original_width, original_height) = get_original_dimensions(image);
+    let (width, height) = get_rasterize_dimensions(&image, url_parameters);
+    debug!("Rasterizing SVG image to {}x{}", width, height);
 
-    let ratio = original_width as f64 / original_height as f64;
-    let width = width as f64 * ratio * 1.1;
-
-    match ops::thumbnail(&url_parameters.path.to_string_lossy(), width.ceil() as i32) {
+    match ops::thumbnail_with_opts(&url_parameters.path.to_string_lossy(), width, &ThumbnailOptions {
+        height,
+        import_profile: "sRGB".to_string(),
+        export_profile: "sRGB".to_string(),
+        intent: Intent::Perceptual,
+        crop: Interesting::Centre,
+        ..ThumbnailOptions::default()
+    }) {
         Ok(image) => Ok(image),
         Err(_) => Err(PipelineError(format!("Failed to rasterize SVG image: {}", get_error_message())))
     }

@@ -10,7 +10,7 @@ use crate::pipeline::{PipelineError, PipelineResult};
 use crate::services::formats::OutputFormat;
 use crate::services::vips::get_error_message;
 
-pub(crate) async fn run(image: &VipsImage, url_parameters: &UrlParameters<'_>, output_format: &OutputFormat) -> PipelineResult<PathBuf> {
+pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>, output_format: &OutputFormat) -> PipelineResult<PathBuf> {
     match output_format {
         // OutputFormat::Avif => finalize_avif(image, url_parameters),
         OutputFormat::Webp => finalize_webp(image, url_parameters),
@@ -39,18 +39,18 @@ pub(crate) async fn run(image: &VipsImage, url_parameters: &UrlParameters<'_>, o
 //
 // }
 
-fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<PathBuf> {
+fn finalize_webp(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<PathBuf> {
 
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Webp);
 
-    if ops::webpsave_with_opts(image, &cache_path, &WebpsaveOptions {
+    if ops::webpsave_with_opts(&image, &cache_path, &WebpsaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
             Quality::Default => 70,
         },
         strip: true,
         preset: ForeignWebpPreset::Drawing,
-        reduction_effort: 5,
+        reduction_effort: 4,
         smart_subsample: true,
         background: match &url_parameters.background {
             Some(background) => Vec::from(background)[0..3].to_vec(),
@@ -67,11 +67,11 @@ fn finalize_webp(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> Pipel
 
 }
 
-fn finalize_jpg(image: &VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<PathBuf> {
+fn finalize_jpg(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<PathBuf> {
 
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Jpg);
 
-    if ops::jpegsave_with_opts(image, &cache_path, &JpegsaveOptions {
+    if ops::jpegsave_with_opts(&image, &cache_path, &JpegsaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
             Quality::Default => 75,

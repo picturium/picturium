@@ -55,7 +55,7 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
                 parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
             }
         ).into_response(&req);
-
+    
         response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
         return response;
     }
