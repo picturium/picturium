@@ -1,0 +1,40 @@
+FROM ubuntu:24.04 as build
+
+COPY --from=lamka02sk/picturium-base:8.15.1 /usr/local/lib /usr/local/lib
+COPY --from=lamka02sk/picturium-base:8.15.1 /usr/local/bin/vips /usr/local/bin/vips
+COPY --from=lamka02sk/picturium-base:8.15.1 /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+COPY --from=lamka02sk/picturium-base:8.15.1 /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+
+RUN apt update -y && apt install -y curl gcc && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g 1500 picturium
+RUN useradd -u 1500 -g 1500 -m -s /bin/bash picturium
+USER picturium
+
+# Install Rust
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/home/picturium/.cargo/bin:${PATH}"
+
+# Build picturium
+RUN mkdir -p /home/picturium/picturium
+WORKDIR /home/picturium/picturium
+COPY --from=root --chown=picturium:picturium . .
+RUN cargo build --release
+
+
+FROM ubuntu:24.04
+
+RUN groupadd -g 1500 picturium
+RUN useradd -u 1500 -g 1500 -m -d /app -s /bin/bash picturium
+
+COPY --from=build /usr/local/lib /usr/local/lib
+COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
+COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+COPY --from=build /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/bin/picturium
+
+RUN ldconfig
+USER picturium
+
+WORKDIR /app
+ENTRYPOINT picturium

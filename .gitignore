@@ -4,3 +4,5 @@
 /cache
 /picturium.log
 /.idea
+/libvips/build
+!/libvips/build/.gitkeep

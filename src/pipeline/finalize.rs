@@ -28,7 +28,7 @@ fn finalize_avif(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
             Quality::Default => 50,
         },
         compression: ForeignHeifCompression::Jpeg,
-        strip: true,
+        // strip: true,
         ..HeifsaveOptions::default()
     }).is_err() {
         error!("Failed to save AVIF image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
@@ -48,9 +48,9 @@ fn finalize_webp(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
             Quality::Custom(quality) => quality as i32,
             Quality::Default => 70,
         },
-        strip: true,
+        // strip: true,
         preset: ForeignWebpPreset::Photo,
-        reduction_effort: 4,
+        // reduction_effort: 4,
         smart_subsample: true,
         background: match &url_parameters.background {
             Some(background) => Vec::from(background)[0..3].to_vec(),
@@ -77,7 +77,7 @@ fn finalize_jpg(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
             Quality::Default => 75,
         },
         optimize_coding: true,
-        strip: true,
+        // strip: true,
         background: match &url_parameters.background {
             Some(background) => Vec::from(background)[0..3].to_vec(),
             None => Vec::new()

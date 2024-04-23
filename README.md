@@ -5,6 +5,31 @@ _Fast and caching media server for processing images, generating thumbnails and 
 **!!! Early stages of development. Some features may not work properly and can change overtime without notice. !!!**
 
 
+## Running picturium
+
+_picturium_ relies on `libvips` crate to provide libvips bindings. This means that the maximum currently supported version of libvips is `8.15.1`. Since building libvips while keeping system packages not broken is quite a challenge, it is recommended running picturium through Docker. There are 3 Docker images:
+
+### picturium
+
+This image contains ready-to-deploy picturium server with everything you are going to need. Replace `{picturium-data}` with local folder containing your `.env` file `data` directory containing files you want to serve. Make sure `picturium` user with UID/GID 1500 has write permissions to this folder (not necessarily your data directories).
+
+```bash
+docker run --rm -v {picturium-data}:/app -ti --init -p 20045:20045 lamka02sk/picturium:latest
+```
+
+### picturium-dev
+
+Image to make development of picturium itself easier. Automatically watches for code changes and recompiles picturium.
+
+```bash
+docker run --rm -v {picturium-git}:/root/picturium -it --init -p 20045:20045 lamka02sk/picturium-dev:8.15.1
+```
+
+### picturium-base
+
+Base picturium image providing `libvips` and other necessary libraries for the final build. This image is used only as base for other images.
+
+
 **Caching**
 - automatically checks file creation, modification and last accessed time
 - set maximum cache size on disk with environment variable `CACHE_CAPACITY` in GB
