@@ -30,18 +30,22 @@ docker run --rm -v {picturium-git}:/root/picturium -it --init -p 20045:20045 lam
 Base picturium image providing `libvips` and other necessary libraries for the final build. This image is used only as base for other images.
 
 
-**Caching**
+## Caching
+
 - automatically checks file creation, modification and last accessed time
 - set maximum cache size on disk with environment variable `CACHE_CAPACITY` in GB
 - old cached files are periodically purged from disk
 
 
-**Token authorization**
+## Token authorization
+
 - _picturium_ supports token authorization of requests to protect against bots or other unwanted traffic
 - if environment variable `KEY` is not set, token authorization will be disabled, otherwise each request needs to be signed with SHA256 HMAC token
 - token is generated from file path + all URL parameters except `token` parameter, sorted alphabetically (check out `RawUrlParameters::verify_token` in [src/parameters/mod.rs](https://github.com/lamka02sk/picturium/blob/master/src/parameters/mod.rs) for more)
 
-**URL GET parameters**
+
+## URL GET parameters
+
 - `w` (int): width of the output image in pixels
 - `h` (int): height of the output image in pixels
 - `q` (int): quality of the output image in percent (default: JPEG - 75%, WEBP - 70%)
@@ -80,9 +84,12 @@ Base picturium image providing `libvips` and other necessary libraries for the f
     - RGB matrix (e.g. `255,124,64`)
     - RGBA matrix (e.g. `255,124,64,255`)
     - predefined value (`transparent`|`black`|`white`)
- 
-**Example URL:**
+
+
+### Example URL
+
 The original image will be processed, rotated left by 90 degrees, resized to be 320px wide while keeping the original aspect ratio, saved with 50% quality in a format (WEBP or JPEG) supported by the requesting web browser.
+
 ```url
 https://example.com/folder/test.jpg?token=fsd5f4sd5f4&w=160&q=50&dpr=2&rot=left
 ```
