@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:24.04 as build
 
 WORKDIR /root
 
@@ -63,3 +63,24 @@ RUN cd /root && \
     cd /root && rm vips-8.15.1.tar.xz && rm -rf vips-8.15.1
 
 RUN mkdir -p /lib/x86_64-linux-gnu && mkdir -p /lib/aarch64-linux-gnu
+
+# Install libreoffice
+RUN apt update -y && \
+    apt install -y libreoffice-writer-nogui \
+    libreoffice-calc-nogui \
+    libreoffice-impress-nogui && \
+    apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+FROM ubuntu:24.04
+
+COPY --from=build /usr/local/lib /usr/local/lib
+COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
+COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+COPY --from=build /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
+COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
+COPY --from=build /etc /etc
+COPY --from=build /usr/share/liblangtag /usr/share/liblangtag
+
+ENV PATH="/usr/lib/libreoffice/program:${PATH}"

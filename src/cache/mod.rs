@@ -27,6 +27,22 @@ pub fn get_path_from_url_parameters(url_parameters: &UrlParameters<'_>, output_f
 
 }
 
+pub fn get_document_path_from_url_parameters(url_parameters: &UrlParameters<'_>) -> String {
+    
+    let env_cache = std::env::var("CACHE").unwrap_or("/tmp".to_string());
+    let filename_hash = crate::crypto::string_hash(&url_parameters.path.to_string_lossy());
+
+    let parts = ["pdf", &filename_hash];
+    let cache_path = format!("{env_cache}/{}", parts.join("/"));
+
+    if let Err(e) = fs::create_dir_all(&cache_path) {
+        error!("Failed to create cache directory: {}", e);
+    }
+
+    cache_path + "/" + &url_parameters.path.file_stem().unwrap().to_string_lossy() + "." + &OutputFormat::Pdf.to_string()
+
+}
+
 pub fn is_cached(cache_path: &str, url_parameters: &UrlParameters<'_>) -> bool {
     
     let cached_max_time = match fs::metadata(cache_path) {
@@ -37,8 +53,8 @@ pub fn is_cached(cache_path: &str, url_parameters: &UrlParameters<'_>) -> bool {
     let original_max_time = match url_parameters.path.metadata() {
         Ok(metadata) => cmp::max(metadata.mtime(), metadata.ctime()),
         Err(_) => return true
-    };  
-    
+    };
+
     if cached_max_time < original_max_time {
         remove_file(cache_path).unwrap_or_else(|e| error!("Failed to remove cache file: {}", e));
         return false;

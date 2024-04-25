@@ -2,12 +2,16 @@ use std::env;
 use std::fmt::Display;
 use std::path::Path;
 use actix_web::http::header::HeaderValue;
+use crate::parameters::format::Format;
+use crate::parameters::UrlParameters;
 
 #[derive(Debug, PartialEq)]
 pub enum OutputFormat {
     Avif,
     Webp,
-    Jpg
+    Jpg,
+    Png,
+    Pdf
 }
 
 impl Display for OutputFormat {
@@ -15,7 +19,9 @@ impl Display for OutputFormat {
         match self {
             OutputFormat::Avif => write!(f, "avif"),
             OutputFormat::Webp => write!(f, "webp"),
-            OutputFormat::Jpg => write!(f, "jpg")
+            OutputFormat::Jpg => write!(f, "jpg"),
+            OutputFormat::Png => write!(f, "png"),
+            OutputFormat::Pdf => write!(f, "pdf")
         }
     }
 }
@@ -37,7 +43,8 @@ pub fn check_supported_input_formats(path: &Path) -> Result<(), ()> {
     match extension.as_str() {
         "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" | "tif" | "tiff" | "ico" | "svg" | // Raster formats
         "heic" | "heif" | "jp2" | "jpm" | "jpx" | "jpf" | "avif" | "avifs" | // Modern raster formats
-        // "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" // Document formats
+        // "arw" | "raw" | // RAW formats
+        "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf" | // Document formats
         "pdf" // Document formats
         => Ok(()),
         _ => Err(())
@@ -45,7 +52,18 @@ pub fn check_supported_input_formats(path: &Path) -> Result<(), ()> {
 
 }
 
-pub fn determine_output_format(accept: Option<&HeaderValue>) -> OutputFormat {
+pub fn determine_output_format(url_parameters: &UrlParameters, accept: Option<&HeaderValue>) -> OutputFormat {
+    
+    if url_parameters.format != Format::Auto {
+        return match url_parameters.format.as_str() {
+            "jpg" => OutputFormat::Jpg,
+            "png" => OutputFormat::Png,
+            "webp" => OutputFormat::Webp,
+            "avif" => OutputFormat::Avif,
+            "pdf" => OutputFormat::Pdf,
+            _ => OutputFormat::Webp
+        }
+    }
 
     let accept = match accept {
         Some(accept) => accept,
@@ -70,20 +88,18 @@ pub fn determine_output_format(accept: Option<&HeaderValue>) -> OutputFormat {
 }
 
 pub fn is_thumbnail_format(path: &Path) -> bool {
-    
     let extension = get_extension(path).unwrap_or_else(|_| String::new());
-
-    match extension.as_str() {
-        "pdf" => true,
-        // "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "pdf" | "psd" | "ai" | "eps" => true,
-        _ => false
-    }
-
+    matches!(extension.as_str(), "pdf" | "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf")
 }
 
 pub fn is_svg(path: &Path) -> bool {
     let extension = get_extension(path).unwrap_or_else(|_| String::new());
     extension == "svg"
+}
+
+pub fn is_generated(path: &Path) -> bool {
+    let extension = get_extension(path).unwrap_or_else(|_| String::new());
+    matches!(extension.as_str(), "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf")
 }
 
 pub fn supports_transparency(path: &Path) -> bool {

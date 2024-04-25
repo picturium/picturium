@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use log::debug;
+use crate::cache;
 
 use crate::parameters::{Rotate, UrlParameters};
 use crate::services::formats::{is_svg, supports_transparency, OutputFormat};
@@ -18,7 +20,13 @@ pub struct PipelineError(pub String);
 
 pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat) -> PipelineResult<PathBuf> {
 
+    debug!("Running pipeline for {}", url_parameters.path.to_string_lossy());
+
     let mut image = thumbnail::run(url_parameters.path, url_parameters).await?;
+
+    if output_format == OutputFormat::Pdf {
+        return Ok(cache::get_document_path_from_url_parameters(url_parameters).into());
+    }
     
     if is_svg(url_parameters.path) {
         image = rasterize::run(image, url_parameters).await?;
@@ -34,9 +42,13 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
         image = resize::run(image, url_parameters).await?;
     }
 
+    debug!("Before rotate");
+
     if url_parameters.rotate != Rotate::No {
         image = rotate::run(image, url_parameters).await?;
     }
+
+    debug!("Checking if background is required");
 
     if supports_transparency(url_parameters.path) && output_format != OutputFormat::Jpg {
         image = background::run(image, url_parameters).await?;

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::{env, thread};
+use std::path::PathBuf;
 
 use actix_files::NamedFile;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
@@ -11,6 +12,7 @@ use log::{debug, error};
 use crate::parameters::{RawUrlParameters, UrlParameters};
 use crate::pipeline;
 use crate::cache;
+use crate::services::formats::is_generated;
 
 pub mod formats;
 pub mod vips;
@@ -44,10 +46,20 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
         };
     }
 
-    let output_format = formats::determine_output_format(req.headers().get("Accept"));
+    let output_format = formats::determine_output_format(&url_parameters, req.headers().get("Accept"));
+    let mut cache_enable = env::var("CACHE_ENABLE").unwrap_or("true".to_string()) == "true";
+    
+    if is_generated(url_parameters.path) {
+        let cache_path = cache::get_document_path_from_url_parameters(&url_parameters);
+        let cache_path = PathBuf::from(cache_path);
+        
+        if !cache::is_cached(&cache_path.with_extension("pdf").to_string_lossy(), &url_parameters) {
+            debug!("Document will be regenerated, disabling cache @{cache_path:?}");
+            cache_enable = false;
+        }
+    }
+    
     let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
-
-    let cache_enable = env::var("CACHE_ENABLE").unwrap_or("true".to_string()) == "true";
 
     // Return from cache
     if cache_enable && cache::is_cached(&cache_path, &url_parameters) {

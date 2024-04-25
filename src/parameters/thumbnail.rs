@@ -2,7 +2,7 @@ use serde::Serialize;
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Thumbnail {
-    pub page: u16
+    pub page: u32
 }
 
 impl Default for Thumbnail {
@@ -16,23 +16,28 @@ impl Default for Thumbnail {
 impl Thumbnail {
 
     pub fn from(value: &Option<String>) -> Self {
+        
+        let mut thumbnail = Self::default();
 
-        // Format: page,dpi
+        // Format: p:{page}
         let value = match value {
             Some(value) => value,
-            None => return Self::default()
+            None => return thumbnail
         };
 
         let parts: Vec<&str> = value.split(',').collect();
+        
+        for part in parts {
+            let pair: Vec<&str> = part.split(':').collect();
+            let key = pair.first().unwrap();
+            let value = pair.last().unwrap();
 
-        let page = match parts.first() {
-            Some(page) => page.parse::<u16>().unwrap_or_else(|_| Self::default().page),
-            None => Self::default().page
-        };
-
-        Thumbnail {
-            page
+            if *key == "p" {
+                thumbnail.page = value.parse::<u32>().unwrap_or_else(|_| Self::default().page).max(1)
+            }
         }
+
+        thumbnail
 
     }
 
@@ -51,18 +56,18 @@ mod tests {
     #[test]
     fn test_thumbnail_from_none() {
         let thumbnail = Thumbnail::from(&None);
-        assert_eq!(thumbnail, None);
+        assert_eq!(thumbnail, Thumbnail::default());
     }
 
     #[test]
     fn test_thumbnail_from_empty() {
         let thumbnail = Thumbnail::from(&Some("".to_string()));
-        assert_eq!(thumbnail, Some(Thumbnail::default()));
+        assert_eq!(thumbnail, Thumbnail::default());
     }
 
     #[test]
     fn test_thumbnail_from_valid_page() {
-        let thumbnail = Thumbnail::from(&Some("2".to_string())).unwrap();
+        let thumbnail = Thumbnail::from(&Some("p:2".to_string()));
         assert_eq!(thumbnail.page, 2);
     }
 }

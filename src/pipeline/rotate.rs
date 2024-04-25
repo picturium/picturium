@@ -1,5 +1,5 @@
 use libvips::{ops, VipsImage};
-use libvips::ops::RotateOptions;
+use libvips::ops::Angle;
 
 use crate::parameters::{Rotate, UrlParameters};
 use crate::pipeline::{PipelineError, PipelineResult};
@@ -7,21 +7,14 @@ use crate::services::vips::get_error_message;
 
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
     
-    let rotate = url_parameters.rotate as isize as f64;
-    
-    let (idx, idy) = match url_parameters.rotate {
-        Rotate::Right => (0.5, -0.5),
-        Rotate::UpsideDown => (0.5, 0.5),
-        Rotate::Left => (-0.5, 0.5),
-        _ => (0.0, 0.0)
+    let angle = match url_parameters.rotate {
+        Rotate::Right => Angle::D270,
+        Rotate::UpsideDown => Angle::D180,
+        Rotate::Left => Angle::D90,
+        _ => Angle::D0
     };
-    
-    match ops::rotate_with_opts(&image, rotate, &RotateOptions {
-        idx,
-        idy,
-        background: vec![0.0, 0.0, 0.0],
-        ..RotateOptions::default()
-    }) {
+
+    match ops::rot(&image, angle) {
         Ok(rotated_image) => Ok(rotated_image),
         Err(_) => Err(PipelineError(format!("Failed to rotate image: {}", get_error_message())))
     }

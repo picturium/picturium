@@ -4,6 +4,10 @@ COPY --from=lamka02sk/picturium-base:8.15.1 /usr/local/lib /usr/local/lib
 COPY --from=lamka02sk/picturium-base:8.15.1 /usr/local/bin/vips /usr/local/bin/vips
 COPY --from=lamka02sk/picturium-base:8.15.1 /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
 COPY --from=lamka02sk/picturium-base:8.15.1 /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=lamka02sk/picturium-base:8.15.1 /usr/lib/libreoffice /usr/lib/libreoffice
+COPY --from=lamka02sk/picturium-base:8.15.1 /usr/share/libreoffice /usr/share/libreoffice
+COPY --from=lamka02sk/picturium-base:8.15.1 /etc /etc
+COPY --from=lamka02sk/picturium-base:8.15.1 /usr/share/liblangtag /usr/share/liblangtag
 
 RUN apt update -y && apt install -y curl gcc && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -13,7 +17,7 @@ USER picturium
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/home/picturium/.cargo/bin:${PATH}"
+ENV PATH="/usr/lib/libreoffice/program:/home/picturium/.cargo/bin:${PATH}"
 
 # Build picturium
 RUN mkdir -p /home/picturium/picturium
@@ -31,6 +35,10 @@ COPY --from=build /usr/local/lib /usr/local/lib
 COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
 COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
 COPY --from=build /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
+COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
+COPY --from=build /etc /etc
+COPY --from=build /usr/share/liblangtag /usr/share/liblangtag
 COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/bin/picturium
 
 RUN ldconfig

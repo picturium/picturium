@@ -5,7 +5,6 @@ use actix_cors::Cors;
 use actix_web::{App, HttpServer};
 use actix_web::middleware::Logger;
 use dotenv::dotenv;
-use libvips::VipsApp;
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, Config, TerminalMode, TermLogger, WriteLogger};
 
@@ -40,9 +39,6 @@ async fn main() -> std::io::Result<()> {
     ).unwrap();
     
     let _scheduler_handle = services::scheduler::schedule();
-
-    let app = VipsApp::new("libvips instance", false).expect("Cannot initialize libvips instance");
-    app.concurrency_set(num_cpus::get() as i32);
 
     HttpServer::new(|| {
 
