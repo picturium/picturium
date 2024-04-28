@@ -44,10 +44,19 @@ async fn main() -> std::io::Result<()> {
 
         let mut cors = Cors::default()
             .max_age(86400);
-
-        for domain in env::var("CORS").unwrap().split(',').skip_while(|x| x.is_empty()) {
-            cors = cors.allowed_origin(domain);
+        
+        let domains = env::var("CORS").unwrap();
+        let domains = domains.split(',').skip_while(|x| x.is_empty());
+        
+        if domains.clone().count() == 0 {
+            cors = cors.allow_any_origin();
+        } else {
+            for domain in domains {
+                cors = cors.allowed_origin(domain);
+            }
         }
+
+        cors = cors.allow_any_method().allow_any_header();
 
         App::new()
             .wrap(Logger::new("%t \"%r\" %s %b \"%{Referer}i\" \"%{User-Agent}i\""))
