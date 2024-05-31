@@ -31,6 +31,8 @@ FROM ubuntu:24.04
 RUN groupadd -g 1500 picturium
 RUN useradd -u 1500 -g 1500 -m -d /app -s /bin/bash picturium
 
+RUN mkdir -p /home/picturium && chown -R picturium:picturium /home/picturium
+
 COPY --from=build /usr/local/lib /usr/local/lib
 COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
 COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
@@ -43,6 +45,8 @@ COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/
 
 RUN ldconfig
 USER picturium
+
+ENV PATH="/usr/lib/libreoffice/program:${PATH}"
 
 WORKDIR /app
 ENTRYPOINT picturium

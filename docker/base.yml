@@ -47,7 +47,8 @@ RUN apt update -y && \
     libpng-dev \
     libheif-dev \
     libpoppler-glib-dev \
-    libcgif-dev && \
+    libcgif-dev \
+    libmagickcore-6.q16-dev && \
     apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install libvips
