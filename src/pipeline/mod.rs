@@ -1,9 +1,10 @@
 use std::path::PathBuf;
-use log::debug;
-use crate::cache;
 
+use log::debug;
+
+use crate::cache;
 use crate::parameters::{Rotate, UrlParameters};
-use crate::services::formats::{is_svg, supports_transparency, OutputFormat};
+use crate::services::formats::{is_svg, OutputFormat, supports_transparency};
 
 mod thumbnail;
 mod rotate;

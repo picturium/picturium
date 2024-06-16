@@ -134,7 +134,7 @@ fn avif_default_quality(image: &VipsImage) -> i32 {
     let area = width * height / 1000000.0;
 
     // Dynamic AVIF quality based on image area, min. 40, max. 59
-    let quality = (8.0 - area) * (59.0 - 40.0) / (8.0 - 0.25) + 40.0;
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (59.0 - 40.0) / (8.0 - 0.25) + 40.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
@@ -148,7 +148,7 @@ fn webp_default_quality(image: &VipsImage) -> i32 {
     let area = width * height / 1000000.0;
 
     // Dynamic WebP quality based on image area, min. 16, max. 78
-    let quality = (8.0 - area) * (78.0 - 16.0) / (8.0 - 0.25) + 16.0;
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (78.0 - 16.0) / (8.0 - 0.25) + 16.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
@@ -162,7 +162,7 @@ fn jpg_default_quality(image: &VipsImage) -> i32 {
     let area = width * height / 1000000.0;
 
     // Dynamic JPEG quality based on image area, min. 40, max. 75
-    let quality = (8.0 - area) * (75.0 - 40.0) / (8.0 - 0.25) + 40.0;
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (75.0 - 40.0) / (8.0 - 0.25) + 40.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
