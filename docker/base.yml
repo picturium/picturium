@@ -81,7 +81,11 @@ COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
 COPY --from=build /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
 COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
 COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
-COPY --from=build /etc /etc
 COPY --from=build /usr/share/liblangtag /usr/share/liblangtag
+COPY --from=build /usr/share/color /usr/share/color
+COPY --from=build /usr/share/ghostscript /usr/share/ghostscript
+COPY --from=build /usr/share/poppler /usr/share/poppler
+COPY --from=build /usr/share/mime /usr/share/mime
+COPY --from=build /etc /etc
 
 ENV PATH="/usr/lib/libreoffice/program:${PATH}"

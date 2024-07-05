@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use libvips::{ops, VipsImage};
-use libvips::ops::{Access, Intent, Interesting, ThumbnailOptions};
+use libvips::ops::{Intent, Interesting, ThumbnailOptions};
 
 use crate::cache;
 use crate::cache::{get_document_path_from_url_parameters, index};
@@ -16,7 +16,7 @@ use crate::services::vips::get_error_message;
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
     if !is_thumbnail_format(url_parameters.path) {
-        return match VipsImage::new_from_file_access(&working_file.to_string_lossy(), Access::Sequential, true) {
+        return match VipsImage::new_from_file(&working_file.to_string_lossy()) {
             Ok(image) => Ok(image),
             Err(error) => return Err(PipelineError(format!("Failed to open image: {}", error)))
         };
@@ -37,10 +37,10 @@ pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>)
 
 fn generate_pdf_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
-    let pdf = VipsImage::new_from_file_access(&working_file.to_string_lossy(), Access::Sequential, true).unwrap();
+    let pdf = VipsImage::new_from_file(&working_file.to_string_lossy()).unwrap();
     let page_parameter = format!("[page={}]", (url_parameters.thumbnail.page - 1).min(pdf.get_n_pages() as u32 - 1));
 
-    let pdf = VipsImage::new_from_file_access(&(working_file.to_string_lossy() + &page_parameter[..]), Access::Sequential, true).unwrap();
+    let pdf = VipsImage::new_from_file(&(working_file.to_string_lossy() + &page_parameter[..])).unwrap();
     let (width, height) = get_rasterize_dimensions(&pdf, url_parameters);
     
     match ops::thumbnail_with_opts(&(working_file.to_string_lossy() + &page_parameter[..]), width, &ThumbnailOptions {

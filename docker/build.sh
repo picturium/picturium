@@ -16,3 +16,4 @@ fi
 
 echo "Building picturium v$version"
 docker buildx build -t "lamka02sk/picturium:$version" -t lamka02sk/picturium:latest -f build.yml --push --platform=linux/amd64,linux/arm64 --progress=plain --build-context root=./../ .
+# docker buildx build -t "lamka02sk/picturium:$version" -t lamka02sk/picturium:latest -f build.yml --load --platform=linux/amd64 --progress=plain --build-context root=./../ .
