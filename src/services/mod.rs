@@ -21,13 +21,16 @@ pub mod scheduler;
 #[get("{path:.*}")]
 pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashMap<String, String>>, raw_url_parameters: Query<RawUrlParameters>) -> impl Responder {
 
-    let path = path.into_inner();
+    let data_dir = env::var("DATA_DIR").unwrap();
+
+    let real_path = PathBuf::from(data_dir).join(path.as_str());
+    let abs_path = real_path.to_str().unwrap();
 
     if let Err(e) = raw_url_parameters.verify_token(&path, &parameters) {
         return HttpResponse::Forbidden().body(e);
     }
 
-    let url_parameters = UrlParameters::new(&path, raw_url_parameters.into_inner());
+    let url_parameters = UrlParameters::new(&abs_path, raw_url_parameters.into_inner());
 
     // Check if original file exists
     if !url_parameters.path.exists() {
