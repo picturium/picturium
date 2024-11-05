@@ -36,6 +36,30 @@ Simply run with bash script `dev.sh` in project root.
 Base picturium image providing `libvips` and other necessary libraries for the final build. 
 This image is used only as base for other images.
 
+### Nix Flake
+
+Picturium provides a Nix flake with a default package, a development shell and a NixOS module.
+
+You can run the picturium service with the following command:
+
+```bash
+nix run github:gravio-la/picturium#picturium
+```
+
+For development, once checked out, you can use the following command to enter the shell with all necessary dependencies:
+```bash
+nix develop
+```
+
+
+For deployment, you can use the NixOS module to automatically deploy and run picturium as a service.
+
+```nix
+services.picturium = {
+  enable = true;
+  secret_key = "your-secret-key";
+};
+```
 
 ## Supported file formats
 
@@ -50,6 +74,7 @@ Supports all file formats in pass-through mode, but some of them get special tre
 - DOC, DOCX, ODT, RTF (for thumbnail generation or pass-through)
 - XLS, XLSX, ODS (for thumbnail generation or pass-through)
 - PPT, PPTX, ODP (for thumbnail generation or pass-through)
+- MP4, MKV, WEBM, AVI, MOV, FLV, WMV, MPG, MPEG, 3GP, OGV, M4V (for thumbnail generation using `mpv`)
 
 ### Output formats
 
