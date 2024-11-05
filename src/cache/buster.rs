@@ -11,7 +11,7 @@ pub fn bust_cache() {
 
     info!("[SCHEDULER] Busting cache...");
 
-    let cache_path = env::var("CACHE").unwrap_or("/tmp".to_string());
+    let cache_path = env::var("CACHE").unwrap_or(env::temp_dir().to_string_lossy().to_string());
 
     if !max_size_exceeded(&cache_path) {
         info!("[SCHEDULER] Cache size is within limits, no need to bust");

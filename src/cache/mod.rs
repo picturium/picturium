@@ -12,7 +12,7 @@ pub mod buster;
 
 pub fn get_path_from_url_parameters(url_parameters: &UrlParameters<'_>, output_format: &OutputFormat) -> String {
 
-    let env_cache = std::env::var("CACHE").unwrap_or("/tmp".to_string());
+    let env_cache = std::env::var("CACHE").unwrap_or(std::env::temp_dir().to_string_lossy().to_string());
     let params_hash = crate::crypto::json_hash(url_parameters);
     let filename_hash = crate::crypto::string_hash(&url_parameters.path.to_string_lossy());
 
@@ -29,7 +29,7 @@ pub fn get_path_from_url_parameters(url_parameters: &UrlParameters<'_>, output_f
 
 pub fn get_document_path_from_url_parameters(url_parameters: &UrlParameters<'_>) -> String {
     
-    let env_cache = std::env::var("CACHE").unwrap_or("/tmp".to_string());
+    let env_cache = std::env::var("CACHE").unwrap_or(std::env::temp_dir().to_string_lossy().to_string());
     let filename_hash = crate::crypto::string_hash(&url_parameters.path.to_string_lossy());
 
     let parts = ["pdf", &filename_hash];
