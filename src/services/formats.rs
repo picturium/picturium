@@ -58,7 +58,8 @@ pub fn check_supported_input_formats(path: &Path) -> Result<(), ()> {
         "heic" | "heif" | "jp2" | "jpm" | "jpx" | "jpf" | "avif" | "avifs" | // Modern raster formats
         // "arw" | "raw" | // RAW formats
         "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf" | // Document formats
-        "pdf" // Document formats
+        "pdf" | // Document formats
+        "mp4" | "mkv" | "webm" | "avi" | "mov" | "flv" | "wmv" | "mpg" | "mpeg" | "3gp" | "ogv" | "m4v" // Video formats
         => Ok(()),
         _ => Err(())
     }
@@ -102,7 +103,7 @@ pub fn determine_output_format(url_parameters: &UrlParameters, accept: Option<&H
 
 pub fn is_thumbnail_format(path: &Path) -> bool {
     let extension = get_extension(path).unwrap_or_else(|_| String::new());
-    matches!(extension.as_str(), "pdf" | "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf")
+    matches!(extension.as_str(), "pdf" | "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf" | "mp4" | "mkv" | "webm")
 }
 
 pub fn is_svg(path: &Path) -> bool {
