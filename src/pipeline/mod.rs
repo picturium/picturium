@@ -13,6 +13,7 @@ mod crop;
 mod finalize;
 mod rasterize;
 mod background;
+mod mpv_thumb;
 
 pub type PipelineResult<T> = Result<T, PipelineError>;
 
