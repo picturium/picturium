@@ -4,7 +4,7 @@ use log::debug;
 
 use crate::cache;
 use crate::parameters::{Rotate, UrlParameters};
-use crate::services::formats::{is_svg, OutputFormat, supports_transparency};
+use crate::services::formats::{is_svg, OutputFormat, supports_transparency, validate_output_format};
 
 mod thumbnail;
 mod rotate;
@@ -39,6 +39,8 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
     //     crop::run(&image, &url_parameters, &output_format).await?;
     // }
 
+    let output_format = validate_output_format(&image, url_parameters, &output_format)?;
+    
     if url_parameters.width.is_some() || url_parameters.height.is_some() {
         image = resize::run(image, url_parameters).await?;
     }

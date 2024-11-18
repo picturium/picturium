@@ -71,7 +71,6 @@ fn get_pipeline_dimensions(image: &VipsImage, url_parameters: &UrlParameters<'_>
     }
 
     let (original_width, original_height) = get_original_dimensions(image);
-    
     let ratio = original_width as f64 / original_height as f64;
 
     if width.is_none() {

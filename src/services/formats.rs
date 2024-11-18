@@ -2,10 +2,23 @@ use std::env;
 use std::fmt::Display;
 use std::path::Path;
 use actix_web::http::header::HeaderValue;
+use libvips::VipsImage;
+use log::{error, warn};
 use crate::parameters::format::Format;
 use crate::parameters::UrlParameters;
+use crate::pipeline::{PipelineError, PipelineResult};
 
-#[derive(Debug, PartialEq)]
+const WEBP_MAX_WIDTH: i32 = 16383; // px
+const WEBP_MAX_HEIGHT: i32 = 16383; // px
+const WEBP_MAX_RESOLUTION: f64 = 170.0; // MPix
+
+const AVIF_MAX_WIDTH: i32 = 16384; // px
+const AVIF_MAX_HEIGHT: i32 = 16384; // px
+
+const PNG_MAX_WIDTH: i32 = 16384; // px
+const PNG_MAX_HEIGHT: i32 = 16384; // px
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum OutputFormat {
     Avif,
     Webp,
@@ -105,4 +118,62 @@ pub fn is_generated(path: &Path) -> bool {
 pub fn supports_transparency(path: &Path) -> bool {
     let extension = get_extension(path).unwrap_or_else(|_| String::new());
     !matches!(extension.as_str(), "jpg" | "jpeg")
+}
+
+pub fn validate_output_format(image: &VipsImage, url_parameters: &UrlParameters<'_>, output_format: &OutputFormat) -> PipelineResult<OutputFormat> {
+    match output_format {
+        OutputFormat::Webp => {
+            let (width, height) = (image.get_width(), image.get_height());
+            let downsize = width > WEBP_MAX_WIDTH || height > WEBP_MAX_HEIGHT || (width * height) as f64 > WEBP_MAX_RESOLUTION;
+
+            if !downsize {
+                return Ok(output_format.clone());
+            }
+
+            if url_parameters.format != Format::Auto {
+                error!("WEBP output image is too large (max. {WEBP_MAX_WIDTH}x{WEBP_MAX_HEIGHT} or {WEBP_MAX_RESOLUTION} MPix)");
+                return Err(PipelineError("Failed to save image: too large".to_string()));
+            }
+
+            warn!("Very large image, falling back to JPEG/PNG format");
+
+            Ok(match image.image_hasalpha() && width <= PNG_MAX_WIDTH && height <= PNG_MAX_HEIGHT {
+                true => OutputFormat::Png,
+                false => OutputFormat::Jpg,
+            })
+        },
+        OutputFormat::Avif => {
+            let (width, height) = (image.get_width(), image.get_height());
+            let downsize = width > AVIF_MAX_WIDTH || height > AVIF_MAX_HEIGHT;
+
+            if !downsize {
+                return Ok(output_format.clone());
+            }
+
+            if url_parameters.format != Format::Auto {
+                error!("AVIF output image is too large (max. {AVIF_MAX_WIDTH}x{AVIF_MAX_HEIGHT})");
+                return Err(PipelineError("Failed to save image: too large".to_string()));
+            }
+
+            warn!("Very large image, falling back to JPEG format");
+            Ok(OutputFormat::Jpg)
+        },
+        OutputFormat::Png => {
+            let (width, height) = (image.get_width(), image.get_height());
+            let downsize = width > PNG_MAX_WIDTH || height > PNG_MAX_HEIGHT;
+
+            if !downsize {
+                return Ok(output_format.clone());
+            }
+
+            if url_parameters.format != Format::Auto {
+                error!("PNG output image is too large (max. {PNG_MAX_WIDTH}x{PNG_MAX_HEIGHT})");
+                return Err(PipelineError("Failed to save image: too large".to_string()));
+            }
+
+            warn!("Very large image, falling back to JPEG format");
+            Ok(OutputFormat::Jpg)
+        },
+        _ => Ok(output_format.clone())
+    }
 }

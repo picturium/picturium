@@ -67,11 +67,20 @@ Supports all file formats in pass-through mode, but some of them get special tre
 - old cached files are periodically purged from disk
 
 
+## Serving files
+
+All files are served from the working directory. The working directory in docker images is located at `/app`.\
+For example file located at `/app/data/image.jpeg` will be available at `https://.../data/image.jpeg`.
+
+
 ## Token authorization
 
-- picturium supports token authorization of requests to protect against bots or other unwanted traffic
-- if environment variable `KEY` is not set, token authorization will be disabled, otherwise each request needs to be signed with SHA256 HMAC token
-- token is generated from file path + all URL parameters except `token` parameter, sorted alphabetically (check out `RawUrlParameters::verify_token` in [src/parameters/mod.rs](https://github.com/lamka02sk/picturium/blob/master/src/parameters/mod.rs) for more)
+- by default, picturium **requires** token authorization of all requests to protect against unwanted traffic
+- you can disable token authorization by completely removing `KEY` environment variable from `.env` file
+- tokens are SHA256 HMAC authentication codes
+- token is generated from file path + all URL parameters except the `token` parameter, sorted alphabetically (check out `RawUrlParameters::verify_token` in [src/parameters/mod.rs](https://github.com/lamka02sk/picturium/blob/master/src/parameters/mod.rs) for more)
+
+- [How to generate token with PHP](examples/generate_token.php)
 
 
 ## URL GET parameters
@@ -135,3 +144,31 @@ The original image will be processed, rotated left by 90 degrees, resized to be 
 ```url
 https://example.com/folder/test.jpg?token=fsd5f4sd5f4&w=160&q=50&dpr=2&rot=left
 ```
+
+## Limitations
+
+picturium uses a few libraries that enforce limits on the size of images that can be processed. 
+We tried to discover and tailor these limits to ensure stability and good (not only) developer experience.
+
+### PNG
+Maximum output image resolution: `16384 x 16384 px` (reason: quantization)
+
+### WebP
+Maximum output image resolution: `16383 x 16383 px` (reason: WebP format limitation)\   
+Maximum total output image resolution: `170 megapixels` (reason: `cwebp` internal limitations)
+
+### AVIF
+Maximum output image resolution: `16384 x 16384 px` (reason: `libvips` internal limitation)
+
+### SVG
+Images included in SVG files (`xlink:href`), cannot exceed memory limit of 512 MB 
+(https://gitlab.gnome.org/GNOME/librsvg/-/issues/1093) due to default configuration of `image` crate
+which cannot be increased through both `librsvg` and `libvips`.
+
+According to test files found in `image` crate, the memory needed to process the image (with reserve) can be calculated like this:
+
+```
+{image_width} * {image_height} * 5 / 1024 / 1024
+```
+
+We recommend including images with maximum resolution of `105 megapixels` (or for example `10000 x 10500 px`).
