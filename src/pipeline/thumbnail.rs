@@ -12,6 +12,7 @@ use crate::pipeline::{PipelineError, PipelineResult};
 use crate::pipeline::resize::get_rasterize_dimensions;
 use crate::services::formats::{get_extension, is_thumbnail_format};
 use crate::services::vips::get_error_message;
+use crate::pipeline::mpv_thumb::generate_video_thumbnail;
 
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
@@ -29,6 +30,7 @@ pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>)
 
     match extension.as_str() {
         "pdf" => generate_pdf_thumbnail(working_file, url_parameters),
+        "mp4" | "mkv" | "webm" | "avi" | "mov" | "flv" | "wmv" | "mpg" | "mpeg" | "3gp" | "ogv" | "m4v" => generate_video_thumbnail(working_file, url_parameters),
         "doc" | "docx" | "odt" | "xls" | "xlsx" | "ods" | "ppt" | "pptx" | "odp" | "rtf" => generate_document_thumbnail(working_file, url_parameters),
         _ => Err(PipelineError("Unsupported file format".to_string()))
     }

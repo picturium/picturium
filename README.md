@@ -36,7 +36,6 @@ Simply run with bash script `dev.sh` in project root.
 Base picturium image providing `libvips` and other necessary libraries for the final build. 
 This image is used only as base for other images.
 
-
 ## Supported file formats
 
 Supports all file formats in pass-through mode, but some of them get special treatment:
@@ -50,6 +49,7 @@ Supports all file formats in pass-through mode, but some of them get special tre
 - DOC, DOCX, ODT, RTF (for thumbnail generation or pass-through)
 - XLS, XLSX, ODS (for thumbnail generation or pass-through)
 - PPT, PPTX, ODP (for thumbnail generation or pass-through)
+- MP4, MKV, WEBM, AVI, MOV, FLV, WMV, MPG, MPEG, 3GP, OGV, M4V (for thumbnail generation using `mpv`)
 
 ### Output formats
 
