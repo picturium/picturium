@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use libvips::{ops, VipsImage};
 use libvips::ops::{ForeignHeifCompression, ForeignHeifEncoder, ForeignKeep, ForeignSubsample, ForeignWebpPreset, HeifsaveOptions, JpegsaveOptions, PngsaveOptions, WebpsaveOptions};
+use libvips::{ops, VipsImage};
 use log::{debug, error};
 
 use crate::cache;

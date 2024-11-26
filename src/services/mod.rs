@@ -12,6 +12,7 @@ use log::{debug, error};
 use crate::parameters::{RawUrlParameters, UrlParameters};
 use crate::pipeline;
 use crate::cache;
+use crate::pipeline::PipelineOutput;
 use crate::services::formats::is_generated;
 
 pub mod formats;
@@ -62,21 +63,11 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
     let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
 
     // Return from cache
-    if cache_enable && cache::is_cached(&cache_path, &url_parameters) {
-        debug!("Using cache @{cache_path}");
-
-        let mut response = NamedFile::open(cache_path).unwrap().set_content_disposition(
-            ContentDisposition {
-                disposition: DispositionType::Inline,
-                parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
-            }
-        ).into_response(&req);
-
-        response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
+    if let Some(response) = cache_response(cache_enable, &cache_path, &url_parameters, &req) {
         return response;
     }
 
-    debug!("Running pipeline for @{cache_path}");
+    debug!("Running pipeline for {} @ {cache_path}", url_parameters.path.to_string_lossy());
 
     // Process image
     let output = match pipeline::run(&url_parameters, output_format).await {
@@ -84,6 +75,37 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
         Err(e) => {
             error!("Failed to process image: {}", e.0);
             return HttpResponse::InternalServerError().into();
+        }
+    };
+
+    let output = match output {
+        PipelineOutput::Image(output) => output,
+        PipelineOutput::OutputFormat(output_format) => {
+            let cache_path = cache::get_path_from_url_parameters(&url_parameters, &output_format);
+
+            // Return from cache
+            if let Some(response) = cache_response(cache_enable, &cache_path, &url_parameters, &req) {
+                return response;
+            }
+
+            debug!("Running pipeline for {} @ {cache_path}", url_parameters.path.to_string_lossy());
+
+            // Process image
+            let output = match pipeline::run(&url_parameters, output_format).await {
+                Ok(output) => output,
+                Err(e) => {
+                    error!("Failed to process image: {}", e.0);
+                    return HttpResponse::InternalServerError().into();
+                }
+            };
+
+            match output {
+                PipelineOutput::Image(output) => output,
+                _ => {
+                    error!("Failed to process image: detected output format resolution recursion");
+                    return HttpResponse::InternalServerError().into();
+                }
+            }
         }
     };
 
@@ -109,4 +131,22 @@ pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashM
         Err(_) => HttpResponse::InternalServerError().into()
     }
 
+}
+
+fn cache_response(enabled: bool, cache_path: &str, url_parameters: &UrlParameters, req: &HttpRequest) -> Option<HttpResponse> {
+    if !enabled || !cache::is_cached(&cache_path, &url_parameters) {
+        return None;
+    }
+
+    debug!("Using cache @{cache_path}");
+
+    let mut response = NamedFile::open(cache_path).unwrap().set_content_disposition(
+        ContentDisposition {
+            disposition: DispositionType::Inline,
+            parameters: vec![DispositionParam::Filename(url_parameters.path.file_name().unwrap().to_string_lossy().into())]
+        }
+    ).into_response(req);
+
+    response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=604800, must-revalidate"));
+    Some(response)
 }
