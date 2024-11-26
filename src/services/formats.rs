@@ -6,7 +6,7 @@ use libvips::VipsImage;
 use log::{error, warn};
 use crate::parameters::format::Format;
 use crate::parameters::UrlParameters;
-use crate::pipeline::{PipelineError, PipelineResult};
+use crate::pipeline::{PipelineError, PipelineResult};   
 
 const WEBP_MAX_WIDTH: i32 = 16383; // px
 const WEBP_MAX_HEIGHT: i32 = 16383; // px
@@ -124,7 +124,7 @@ pub fn validate_output_format(image: &VipsImage, url_parameters: &UrlParameters<
     match output_format {
         OutputFormat::Webp => {
             let (width, height) = (image.get_width(), image.get_height());
-            let downsize = width > WEBP_MAX_WIDTH || height > WEBP_MAX_HEIGHT || (width * height) as f64 > WEBP_MAX_RESOLUTION;
+            let downsize = width > WEBP_MAX_WIDTH || height > WEBP_MAX_HEIGHT || (width * height) as f64 > (WEBP_MAX_RESOLUTION * 1_000_000.0);
 
             if !downsize {
                 return Ok(output_format.clone());
