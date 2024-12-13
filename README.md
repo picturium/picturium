@@ -36,6 +36,30 @@ Simply run with bash script `dev.sh` in project root.
 Base picturium image providing `libvips` and other necessary libraries for the final build. 
 This image is used only as base for other images.
 
+### Nix Flake
+
+Picturium provides a Nix flake with a default package, a development shell and a NixOS module.
+
+You can run the picturium service with the following command:
+
+```bash
+nix run github:lamka02sk/picturium
+```
+
+For development, once checked out, you can use the following command to enter the shell with all necessary dependencies:
+```bash
+nix develop
+```
+
+
+For deployment, you can use the NixOS module to automatically deploy and run picturium as a service.
+
+```nix
+services.picturium = {
+  enable = true;
+  secret_key = "your-secret-key";
+};
+```
 
 ## Supported file formats
 
