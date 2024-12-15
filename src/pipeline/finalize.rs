@@ -30,7 +30,7 @@ fn finalize_avif(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
         },
         bitdepth: 8,
         compression: ForeignHeifCompression::Hevc,
-        effort: 0,
+        effort: 1,
         subsample_mode: ForeignSubsample::Off,
         encoder: ForeignHeifEncoder::Aom,
         keep: ForeignKeep::None,
@@ -44,6 +44,7 @@ fn finalize_avif(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
+    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -71,6 +72,7 @@ fn finalize_webp(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
+    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -96,6 +98,7 @@ fn finalize_jpg(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
+    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -123,6 +126,7 @@ fn finalize_png(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
+    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }

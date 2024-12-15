@@ -41,7 +41,15 @@ async fn main() -> std::io::Result<()> {
     
     let _scheduler_handle = services::scheduler::schedule();
 
+    let vips_concurrency = env::var("VIPS_CONCURRENCY").unwrap_or("0".into()).parse::<i32>().unwrap_or(0);
+    let mut workers = env::var("WORKERS").unwrap_or("0".into()).parse::<usize>().unwrap_or(0);
+
+    if workers <= 0 {
+        workers = num_cpus::get();
+    }
+
     let app = VipsApp::new("vips", false).unwrap();
+    app.concurrency_set(vips_concurrency);
     app.cache_set_max(0);
     app.cache_set_max_files(0);
     app.cache_set_max_mem(0);
@@ -71,6 +79,7 @@ async fn main() -> std::io::Result<()> {
 
     })
         .bind((env::var("HOST").unwrap(), env::var("PORT").unwrap().parse().unwrap()))?
+        .workers(workers)
         .run()
         .await
 
