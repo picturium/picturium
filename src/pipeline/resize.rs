@@ -1,8 +1,6 @@
 use std::mem::swap;
-use libvips::{ops, VipsImage};
-use libvips::ops::{Interesting, Size, ThumbnailImageOptions};
 use log::{debug, error};
-
+use picturium_libvips::{ThumbnailOptions, Vips, VipsImage, VipsInteresting, VipsSize, VipsThumbnails};
 use crate::parameters::{Rotate, UrlParameters};
 use crate::pipeline::{PipelineError, PipelineResult};
 use crate::services::vips::get_error_message;
@@ -12,19 +10,17 @@ pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) ->
     let (width, height) = get_pipeline_dimensions(&image, url_parameters);
     debug!("Resizing image to {}x{}", width, height);
 
-    let image = ops::thumbnail_image_with_opts(&image, width, &ThumbnailImageOptions {
+    let image = image.thumbnail_image(width, ThumbnailOptions {
         height,
-        size: Size::Down,
-        crop: Interesting::Centre,
-        import_profile: "sRGB".into(),
-        export_profile: "sRGB".into(),
-        ..ThumbnailImageOptions::default()
-    });
+        size: VipsSize::Down,
+        crop: VipsInteresting::Centre,
+        ..ThumbnailOptions::default()
+    }.into());
 
     Ok(match image {
         Ok(image) => image,
         Err(_) => {
-            error!("Failed to resize image {} with dimensions {width}x{height}: {}", url_parameters.path.to_string_lossy(), get_error_message());
+            error!("Failed to resize image {} with dimensions {width}x{height}: {}", url_parameters.path.to_string_lossy(), Vips::get_error());
             return Err(PipelineError("Failed to resize image".to_string()))
         }
     })

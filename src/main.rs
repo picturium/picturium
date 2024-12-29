@@ -5,8 +5,8 @@ use actix_cors::Cors;
 use actix_web::{App, HttpServer};
 use actix_web::middleware::Logger;
 use dotenv::dotenv;
-use libvips::VipsApp;
-use log::LevelFilter;
+use log::{error, LevelFilter};
+use picturium_libvips::{Cache, Vips};
 use simplelog::{ColorChoice, CombinedLogger, Config, TerminalMode, TermLogger, WriteLogger};
 
 use crate::routes::routes;
@@ -48,11 +48,17 @@ async fn main() -> std::io::Result<()> {
         workers = num_cpus::get();
     }
 
-    let app = VipsApp::new("vips", false).unwrap();
-    app.concurrency_set(vips_concurrency);
-    app.cache_set_max(0);
-    app.cache_set_max_files(0);
-    app.cache_set_max_mem(0);
+    let app = match Vips::new("picturium") {
+        Ok(vips) => vips,
+        Err(e) => {
+            error!("Failed to initialize libvips: {e}");
+            std::process::exit(1);
+        },
+    };
+
+    app.concurrency(vips_concurrency);
+    app.cache(Cache::disabled());
+    app.check_leaks();
 
     HttpServer::new(|| {
 

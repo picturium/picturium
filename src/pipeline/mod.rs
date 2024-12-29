@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use log::debug;
-
+use picturium_libvips::Vips;
 use crate::cache;
 use crate::parameters::{Rotate, UrlParameters};
 use crate::services::formats::{is_svg, OutputFormat, supports_transparency, validate_output_format};
@@ -30,7 +30,7 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
     if output_format == OutputFormat::Pdf {
         return Ok(PipelineOutput::Image(cache::get_document_path_from_url_parameters(url_parameters).into()));
     }
-    
+
     if is_svg(url_parameters.path) {
         image = rasterize::run(image, url_parameters).await?;
     }
@@ -46,13 +46,10 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
 
     let output_format = valid_output_format;
 
-    debug!("Performing ICC transform");
-    image = icc::transform(image).await?;
-
     // if url_parameters.crop.is_some() {
     //     crop::run(&image, &url_parameters, &output_format).await?;
     // }
-    
+
     if url_parameters.width.is_some() || url_parameters.height.is_some() {
         image = resize::run(image, url_parameters).await?;
     }
@@ -62,13 +59,19 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
         image = rotate::run(image, url_parameters).await?;
     }
 
-    if supports_transparency(url_parameters.path) && output_format != OutputFormat::Jpg {
+    if supports_transparency(url_parameters.path) {
         debug!("Applying background");
         image = background::run(image, url_parameters).await?;
     }
 
-    match finalize::run(image, url_parameters, &output_format).await {
+    debug!("Performing ICC transform");
+    image = icc::transform(image).await?;
+
+    let result = match finalize::run(image, url_parameters, &output_format).await {
         Ok(result) => Ok(PipelineOutput::Image(result)),
         Err(e) => Err(e)
-    }
+    };
+
+    Vips::thread_shutdown();
+    result
 }

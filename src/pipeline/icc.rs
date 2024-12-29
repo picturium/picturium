@@ -1,10 +1,9 @@
+use picturium_libvips::{Vips, VipsImage, VipsOperations};
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::services::vips::get_error_message;
-use libvips::{ops, VipsImage};
 
 pub(crate) async fn transform(image: VipsImage) -> PipelineResult<VipsImage> {
-    match ops::icc_transform(&image, "sRGB") {
+    match image.icc_transform("sRGB", None) {
         Ok(image) => Ok(image),
-        Err(_) => Err(PipelineError(format!("Failed to transform image to sRGB: {}", get_error_message())))
+        Err(_) => Err(PipelineError(format!("Failed to transform image to sRGB: {}", Vips::get_error())))
     }
 }

@@ -2,8 +2,8 @@ use std::env;
 use std::fmt::Display;
 use std::path::Path;
 use actix_web::http::header::HeaderValue;
-use libvips::VipsImage;
 use log::{error, warn};
+use picturium_libvips::VipsImage;
 use crate::parameters::format::Format;
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};   
@@ -137,7 +137,7 @@ pub fn validate_output_format(image: &VipsImage, url_parameters: &UrlParameters<
 
             warn!("Very large image, falling back to JPEG/PNG format");
 
-            Ok(match image.image_hasalpha() && width <= PNG_MAX_WIDTH && height <= PNG_MAX_HEIGHT {
+            Ok(match image.is_transparent() && width <= PNG_MAX_WIDTH && height <= PNG_MAX_HEIGHT {
                 true => OutputFormat::Png,
                 false => OutputFormat::Jpg,
             })

@@ -1,7 +1,6 @@
-use libvips::{ops, VipsImage};
+use picturium_libvips::{Vips, VipsImage, VipsOperations};
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::services::vips::get_error_message;
 
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
     
@@ -10,11 +9,9 @@ pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) ->
         None => return Ok(image)
     };
     
-    let background_image = VipsImage::new_from_image(&image, &background).unwrap();
-    
-    match ops::composite_2(&background_image, &image, ops::BlendMode::Over) {
+    match image.background_color(&background) {
         Ok(image) => Ok(image),
-        Err(_) => Err(PipelineError(format!("Failed to embed background: {}", get_error_message())))
+        Err(_) => Err(PipelineError(format!("Failed to embed background: {}", Vips::get_error())))
     }
 
 }

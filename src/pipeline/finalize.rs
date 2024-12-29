@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
-use libvips::ops::{ForeignHeifCompression, ForeignHeifEncoder, ForeignKeep, ForeignSubsample, ForeignWebpPreset, HeifsaveOptions, JpegsaveOptions, PngsaveOptions, WebpsaveOptions};
-use libvips::{ops, VipsImage};
 use log::{debug, error};
-
+use picturium_libvips::{HeifSaveOptions, JpegSaveOptions, PngSaveOptions, VipsHeifCompression, VipsHeifEncoder, VipsImage, VipsKeep, VipsSaving, VipsSubsample, VipsWebpPreset, WebpSaveOptions};
 use crate::cache;
 use crate::parameters::{Quality, UrlParameters};
 use crate::pipeline::{PipelineError, PipelineResult};
@@ -23,28 +21,23 @@ fn finalize_avif(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
 
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Avif);
 
-    if ops::heifsave_with_opts(&image, &cache_path, &HeifsaveOptions {
+    if let Err(e) = image.save_heif(&cache_path, HeifSaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
             Quality::Default => avif_default_quality(&image),
         },
         bitdepth: 8,
-        compression: ForeignHeifCompression::Hevc,
+        compression: VipsHeifCompression::HEVC,
         effort: 1,
-        subsample_mode: ForeignSubsample::Off,
-        encoder: ForeignHeifEncoder::Aom,
-        keep: ForeignKeep::None,
-        background: match &url_parameters.background {
-            Some(background) => Vec::from(background)[0..3].to_vec(),
-            None => Vec::new()
-        },
-        ..HeifsaveOptions::default()
-    }).is_err() {
-        error!("Failed to save AVIF image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
+        subsample_mode: VipsSubsample::Off,
+        encoder: VipsHeifEncoder::AOM,
+        keep: VipsKeep::None,
+        ..HeifSaveOptions::default()
+    }.into()) {
+        error!("Failed to save AVIF image {}: {}", url_parameters.path.to_string_lossy(), e);
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
-    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -53,26 +46,21 @@ fn finalize_webp(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
 
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Webp);
 
-    if ops::webpsave_with_opts(&image, &cache_path, &WebpsaveOptions {
+    if let Err(e) = image.save_webp(&cache_path, WebpSaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
             Quality::Default => webp_default_quality(&image),
         },
-        preset: ForeignWebpPreset::Last,
+        preset: VipsWebpPreset::Default,
         smart_subsample: true,
-        keep: ForeignKeep::None,
-        background: match &url_parameters.background {
-            Some(background) => Vec::from(background)[0..3].to_vec(),
-            None => Vec::new()
-        },
+        keep: VipsKeep::None,
         alpha_q: 50,
-        ..WebpsaveOptions::default()
-    }).is_err() {
-        error!("Failed to save WEBP image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
+        ..WebpSaveOptions::default()
+    }.into()) {
+        error!("Failed to save WEBP image {}: {}", url_parameters.path.to_string_lossy(), e);
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
-    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -81,24 +69,19 @@ fn finalize_jpg(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
 
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Jpg);
 
-    if ops::jpegsave_with_opts(&image, &cache_path, &JpegsaveOptions {
+    if let Err(e) = image.save_jpeg(&cache_path, JpegSaveOptions {
         q: match url_parameters.quality {
             Quality::Custom(quality) => quality as i32,
             Quality::Default => jpg_default_quality(&image),
         },
         optimize_coding: true,
-        keep: ForeignKeep::None,
-        background: match &url_parameters.background {
-            Some(background) => Vec::from(background)[0..3].to_vec(),
-            None => Vec::new()
-        },
-        ..JpegsaveOptions::default()
-    }).is_err() {
-        error!("Failed to save JPG image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
+        keep: VipsKeep::None,
+        ..JpegSaveOptions::default()
+    }.into()) {
+        error!("Failed to save JPEG image {}: {}", url_parameters.path.to_string_lossy(), e);
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
-    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }
@@ -111,22 +94,17 @@ fn finalize_png(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
         Quality::Default => 78,
     };
 
-    if ops::pngsave_with_opts(&image, &cache_path, &PngsaveOptions {
-        keep: ForeignKeep::None,
+    if let Err(e) = image.save_png(&cache_path, PngSaveOptions {
+        keep: VipsKeep::None,
         palette: true,
         q: quality,
         dither: if quality < 90 { 0.8 } else { 1.0 },
-        background: match &url_parameters.background {
-            Some(background) => Vec::from(background)[0..3].to_vec(),
-            None => Vec::new()
-        },
-        ..PngsaveOptions::default()
-    }).is_err() {
-        error!("Failed to save PNG image {}: {}", url_parameters.path.to_string_lossy(), get_error_message());
+        ..PngSaveOptions::default()
+    }.into()) {
+        error!("Failed to save PNG image {}: {}", url_parameters.path.to_string_lossy(), e);
         return Err(PipelineError("Failed to save image".to_string()));
     }
 
-    image.image_set_kill(true);
     Ok(cache_path.into())
 
 }

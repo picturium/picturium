@@ -1,22 +1,18 @@
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-use libvips::{ops, VipsImage};
-use libvips::ops::{Intent, Interesting, ThumbnailOptions};
-
+use picturium_libvips::{ThumbnailOptions, VipsImage, VipsIntent, VipsInteresting, VipsThumbnails};
 use crate::cache;
 use crate::cache::{get_document_path_from_url_parameters, index};
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
 use crate::pipeline::resize::get_rasterize_dimensions;
 use crate::services::formats::{get_extension, is_thumbnail_format};
-use crate::services::vips::get_error_message;
 
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
     if !is_thumbnail_format(url_parameters.path) {
-        return match VipsImage::new_from_file(&working_file.to_string_lossy()) {
+        return match VipsImage::new_from_file(&working_file.to_string_lossy(), None) {
             Ok(image) => Ok(image),
             Err(error) => return Err(PipelineError(format!("Failed to open image: {}", error)))
         };
@@ -37,51 +33,57 @@ pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>)
 
 fn generate_pdf_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
-    let pdf = VipsImage::new_from_file(&working_file.to_string_lossy()).unwrap();
-    let page_parameter = format!("[page={}]", (url_parameters.thumbnail.page - 1).min(pdf.get_n_pages() as u32 - 1));
+    let pdf = match VipsImage::new_from_file(&working_file.to_string_lossy(), None) {
+        Ok(image) => image,
+        Err(e) => return Err(PipelineError(format!("Failed to open PDF file: {e}")))
+    };
 
-    let pdf = VipsImage::new_from_file(&(working_file.to_string_lossy() + &page_parameter[..])).unwrap();
+    let page_parameter = format!("[page={}]", (url_parameters.thumbnail.page - 1).min(pdf.get_page_count() as u32 - 1));
+
+    let pdf = match VipsImage::new_from_file(&(working_file.to_string_lossy() + &page_parameter[..]), None) {
+        Ok(image) => image,
+        Err(e) => return Err(PipelineError(format!("Failed to open PDF page {page_parameter}: {e}")))
+    };
+
     let (width, height) = get_rasterize_dimensions(&pdf, url_parameters);
-    
-    match ops::thumbnail_with_opts(&(working_file.to_string_lossy() + &page_parameter[..]), width, &ThumbnailOptions {
+
+    match VipsImage::thumbnail(&(working_file.to_string_lossy() + &page_parameter[..]), width, ThumbnailOptions {
         height,
-        import_profile: "sRGB".to_string(),
-        export_profile: "sRGB".to_string(),
-        intent: Intent::Perceptual,
-        crop: Interesting::Centre,
+        intent: VipsIntent::Perceptual,
+        crop: VipsInteresting::Centre,
         ..Default::default()
-    }) {
+    }.into()) {
         Ok(image) => Ok(image),
-        _ => Err(PipelineError(format!("Failed to generate thumbnail for PDF file {working_file:?}: {}", get_error_message())))
+        Err(e) => Err(PipelineError(format!("Failed to generate thumbnail for PDF file {working_file:?}: {e}")))
     }
-    
+
 }
 
 fn generate_document_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
-    
+
     let cache_path = get_document_path_from_url_parameters(url_parameters);
     let cache_path = Path::new(&cache_path);
-    
+
     let cache_enable = env::var("CACHE_ENABLE").unwrap_or("true".to_string()) == "true";
-    
+
     if !cache_enable || !cache::is_cached(&cache_path.to_string_lossy(), url_parameters) {
         generate_pdf_from_document(working_file, cache_path)?;
     }
-    
+
     generate_pdf_thumbnail(cache_path, url_parameters)
 
 }
 
 fn generate_pdf_from_document(working_file: &Path, cache_path: &Path) -> PipelineResult<()> {
-    
+
     let file_path = cache_path.parent().unwrap().to_string_lossy();
     let command = format!("soffice --headless --convert-to pdf --outdir {file_path} {working_file:?}");
-    
+
     let output = Command::new("sh")
         .arg("-c")
         .arg(&command)
         .output();
-    
+
     match output {
         Ok(output) => match output.status.success() {
             true => {
@@ -92,5 +94,5 @@ fn generate_pdf_from_document(working_file: &Path, cache_path: &Path) -> Pipelin
         },
         Err(error) => Err(PipelineError(format!("Failed to convert document to PDF: {}", error)))
     }
-    
+
 }
