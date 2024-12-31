@@ -318,6 +318,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bin-rs"
+version = "0.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e62e12dae19127152eee5b5ff249a86100a01e388abbac4c22e9f97eb33d9c3d"
+
+[[package]]
 name = "bindgen"
 version = "0.71.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -768,6 +774,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "icc-profile"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3ee29116211aabdc036230a23dd6d875f8cfa57ae735d0958c62b1dc4e000a5"
+dependencies = [
+ "bin-rs",
+]
+
+[[package]]
 name = "icu_collections"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -979,16 +994,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libvips"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33890b93365ac05b5e6063d41bc014a1598087db4a0b9f75eddaa7dad0f7fc2a"
-dependencies = [
- "num-derive",
- "num-traits",
-]
-
-[[package]]
 name = "litemap"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1093,17 +1098,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
-name = "num-derive"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1191,7 +1185,7 @@ dependencies = [
  "clokwerk",
  "data-encoding",
  "dotenv",
- "libvips",
+ "icc-profile",
  "log",
  "num_cpus",
  "picturium-libvips",
@@ -1205,9 +1199,9 @@ dependencies = [
 
 [[package]]
 name = "picturium-libvips"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30a2d972c4d11c4fda4a5ae018ac784f30df9c467a7262fb35edb3f95a0bf337"
+checksum = "ccfe5d2c42580b81909bbcd7dd919350efe569e137df8fce37d83663fff6b361"
 dependencies = [
  "bindgen",
  "bitmask-enum",

@@ -6,7 +6,6 @@ use crate::cache;
 use crate::parameters::{Quality, UrlParameters};
 use crate::pipeline::{PipelineError, PipelineResult};
 use crate::services::formats::OutputFormat;
-use crate::services::vips::get_error_message;
 
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>, output_format: &OutputFormat) -> PipelineResult<PathBuf> {
     match output_format {

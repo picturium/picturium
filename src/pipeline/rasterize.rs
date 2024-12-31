@@ -1,9 +1,8 @@
 use log::debug;
-use picturium_libvips::{ThumbnailOptions, VipsImage, VipsIntent, VipsInteresting, VipsThumbnails};
+use picturium_libvips::{ThumbnailOptions, Vips, VipsImage, VipsIntent, VipsInteresting, VipsThumbnails};
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
 use crate::pipeline::resize::get_rasterize_dimensions;
-use crate::services::vips::get_error_message;
 
 // Rasterize SVG image to bitmap
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
@@ -18,7 +17,7 @@ pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) ->
         ..ThumbnailOptions::default()
     }.into()) {
         Ok(image) => Ok(image),
-        Err(_) => Err(PipelineError(format!("Failed to rasterize SVG image: {}", get_error_message())))
+        Err(_) => Err(PipelineError(format!("Failed to rasterize SVG image: {}", Vips::get_error())))
     }
 
 }

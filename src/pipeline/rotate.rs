@@ -1,7 +1,6 @@
 use picturium_libvips::{VipsAngle, VipsImage, VipsOperations};
 use crate::parameters::{Rotate, UrlParameters};
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::services::vips::get_error_message;
 
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
     

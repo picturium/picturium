@@ -3,6 +3,7 @@ use log::debug;
 use picturium_libvips::Vips;
 use crate::cache;
 use crate::parameters::{Rotate, UrlParameters};
+use crate::pipeline::icc::uses_srgb_color_profile;
 use crate::services::formats::{is_svg, OutputFormat, supports_transparency, validate_output_format};
 
 mod thumbnail;
@@ -35,6 +36,8 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
         image = rasterize::run(image, url_parameters).await?;
     }
 
+    let perform_icc_transform = uses_srgb_color_profile(&image);
+
     debug!("Performing autorotate");
     image = rotate::autorotate(image).await?;
 
@@ -64,8 +67,10 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
         image = background::run(image, url_parameters).await?;
     }
 
-    debug!("Performing ICC transform");
-    image = icc::transform(image).await?;
+    if perform_icc_transform {
+        debug!("Performing ICC transform");
+        image = icc::transform(image).await?;
+    }
 
     let result = match finalize::run(image, url_parameters, &output_format).await {
         Ok(result) => Ok(PipelineOutput::Image(result)),

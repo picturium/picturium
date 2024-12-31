@@ -16,7 +16,6 @@ use crate::pipeline::PipelineOutput;
 use crate::services::formats::is_generated;
 
 pub mod formats;
-pub mod vips;
 pub mod scheduler;
 
 #[get("{path:.*}")]
