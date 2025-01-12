@@ -51,7 +51,7 @@ fn finalize_webp(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipeli
             Quality::Default => webp_default_quality(&image),
         },
         preset: VipsWebpPreset::Default,
-        smart_subsample: true,
+        smart_subsample: false,
         keep: VipsKeep::None,
         alpha_q: 50,
         ..WebpSaveOptions::default()
@@ -90,14 +90,16 @@ fn finalize_png(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
     let cache_path = cache::get_path_from_url_parameters(url_parameters, &OutputFormat::Png);
     let quality = match url_parameters.quality {
         Quality::Custom(quality) => quality as i32,
-        Quality::Default => 78,
+        Quality::Default => 60,
     };
 
     if let Err(e) = image.save_png(&cache_path, PngSaveOptions {
+        effort: 10,
         keep: VipsKeep::None,
-        palette: true,
+        palette: if quality == 100 { false } else { true },
+        compression: if quality == 100 { 9 } else { 6 },
         q: quality,
-        dither: if quality < 90 { 0.8 } else { 1.0 },
+        dither: 0.0,
         ..PngSaveOptions::default()
     }.into()) {
         error!("Failed to save PNG image {}: {}", url_parameters.path.to_string_lossy(), e);
@@ -110,12 +112,14 @@ fn finalize_png(image: VipsImage, url_parameters: &UrlParameters<'_>) -> Pipelin
 
 fn avif_default_quality(image: &VipsImage) -> i32 {
 
-    let width = image.get_width() as f64;
-    let height = image.get_height() as f64;
-    let area = width * height / 1000000.0;
+    let area = calculate_area(image);
 
-    // Dynamic AVIF quality based on image area, min. 40, max. 59
-    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (59.0 - 40.0) / (8.0 - 0.25) + 40.0;
+    if area < 0.025 {
+        return 80;
+    }
+
+    // Dynamic AVIF quality based on image area, min. 32, max. 59
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (59.0 - 32.0) / (8.0 - 0.25) + 32.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
@@ -124,12 +128,14 @@ fn avif_default_quality(image: &VipsImage) -> i32 {
 
 fn webp_default_quality(image: &VipsImage) -> i32 {
 
-    let width = image.get_width() as f64;
-    let height = image.get_height() as f64;
-    let area = width * height / 1000000.0;
+    let area = calculate_area(image);
 
-    // Dynamic WebP quality based on image area, min. 16, max. 78
-    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (78.0 - 16.0) / (8.0 - 0.25) + 16.0;
+    if area < 0.025 {
+        return 100;
+    }
+
+    // Dynamic WebP quality based on image area, min. 28, max. 78
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (78.0 - 28.0) / (8.0 - 0.25) + 28.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
@@ -138,14 +144,23 @@ fn webp_default_quality(image: &VipsImage) -> i32 {
 
 fn jpg_default_quality(image: &VipsImage) -> i32 {
 
-    let width = image.get_width() as f64;
-    let height = image.get_height() as f64;
-    let area = width * height / 1000000.0;
+    let area = calculate_area(image);
 
-    // Dynamic JPEG quality based on image area, min. 40, max. 75
-    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (75.0 - 40.0) / (8.0 - 0.25) + 40.0;
+    if area < 0.025 {
+        return 90;
+    }
+
+    // Dynamic JPEG quality based on image area, min. 28, max. 75
+    let quality = (8.0 - area).clamp(0.0, 8.0 - 0.25) * (75.0 - 28.0) / (8.0 - 0.25) + 28.0;
     debug!("Serving image with quality: {}%, {area}MPix", quality as i32);
 
     quality as i32
 
+}
+
+fn calculate_area(image: &VipsImage) -> f64 {
+    let width = image.get_width() as f64;
+    let height = image.get_height() as f64;
+
+    width * height / 1000000.0
 }

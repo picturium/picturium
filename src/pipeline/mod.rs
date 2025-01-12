@@ -36,7 +36,7 @@ pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat
         image = rasterize::run(image, url_parameters).await?;
     }
 
-    let perform_icc_transform = uses_srgb_color_profile(&image);
+    let perform_icc_transform = !uses_srgb_color_profile(&image);
 
     debug!("Performing autorotate");
     image = rotate::autorotate(image).await?;
