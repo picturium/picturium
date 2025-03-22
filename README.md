@@ -2,8 +2,6 @@
 
 _Fast and caching media server for processing images, generating thumbnails and serving files on the fly_
 
-**!!! Early stages of development. Some features may not work properly and can change overtime without notice. !!!**
-
 
 ## Running picturium
 
@@ -114,7 +112,7 @@ For example file located at `/app/data/image.jpeg` will be available at `https:/
         - `bottom-right`|`right-bottom`: crop from right bottom corner of the original image
     - `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported
     - `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported
-- [ ] `load` (string): parameters for image loading customization
+- [x] `load` (string): parameters for image loading customization
     - `dpi` (int): DPI value for rasterizing SVG images (`load=dpi:90`), by default, picturium tries to guess the DPI from output image dimensions
 - [x] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1`
     - `p` (int): page of the document to generate thumbnail, default: `1`
