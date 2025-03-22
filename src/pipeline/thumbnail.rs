@@ -38,7 +38,8 @@ fn generate_pdf_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_
         Err(e) => return Err(PipelineError(format!("Failed to open PDF file: {e}")))
     };
 
-    let page_parameter = format!("[page={}]", (url_parameters.thumbnail.page - 1).min(pdf.get_page_count() as u32 - 1));
+    let page = url_parameters.thumbnail.page.unwrap_or(1);
+    let page_parameter = format!("[page={}]", (page - 1).min(pdf.get_page_count() as u32 - 1));
 
     let pdf = match VipsImage::new_from_file(&(working_file.to_string_lossy() + &page_parameter[..]), None) {
         Ok(image) => image,
