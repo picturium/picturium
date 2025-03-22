@@ -7,16 +7,9 @@ use crate::cache::{get_document_path_from_url_parameters, index};
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
 use crate::pipeline::resize::get_rasterize_dimensions;
-use crate::services::formats::{get_extension, is_thumbnail_format};
+use crate::services::formats::{get_extension};
 
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
-
-    if !is_thumbnail_format(url_parameters.path) {
-        return match VipsImage::new_from_file(&working_file.to_string_lossy(), None) {
-            Ok(image) => Ok(image),
-            Err(error) => return Err(PipelineError(format!("Failed to open image: {}", error)))
-        };
-    }
 
     let extension = match get_extension(url_parameters.path) {
         Ok(extension) => extension,

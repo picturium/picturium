@@ -8,6 +8,11 @@ use crate::pipeline::resize::get_rasterize_dimensions;
 pub(crate) async fn run(image: VipsImage, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
     let (width, height) = get_rasterize_dimensions(&image, url_parameters);
+    
+    if width <= image.get_width() && height <= image.get_height() {
+        return Ok(image);
+    }
+    
     debug!("Rasterizing SVG image to {}x{}", width, height);
 
     match VipsImage::thumbnail(&url_parameters.path.to_string_lossy(), width, ThumbnailOptions {

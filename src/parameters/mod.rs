@@ -10,6 +10,7 @@ pub use thumbnail::Thumbnail;
 
 use crate::crypto::verify_hmac;
 use crate::parameters::format::Format;
+use crate::parameters::load::Load;
 
 pub mod background;
 pub mod rotate;
@@ -17,6 +18,7 @@ pub mod thumbnail;
 pub mod origin;
 pub mod crop;
 pub mod format;
+mod load;
 
 pub type ParametersResult<T> = Result<T, &'static str>;
 
@@ -27,6 +29,7 @@ pub struct RawUrlParameters {
     q: Option<u8>,
     dpr: Option<f32>,
     crop: Option<String>,
+    load: Option<String>,
     thumb: Option<String>,
     original: Option<bool>,
     rot: Option<String>,
@@ -68,6 +71,7 @@ pub struct UrlParameters<'a> {
     pub height: Option<u16>,
     pub quality: Quality,
     pub crop: Option<Crop>,
+    pub load: Load,
     pub thumbnail: Thumbnail,
     pub original: bool,
     pub rotate: Rotate,
@@ -91,6 +95,7 @@ impl<'a> UrlParameters<'a> {
                 None => Quality::Default
             },
             crop: Crop::from(&value.crop),
+            load: Load::from(&value.load),
             thumbnail: Thumbnail::from(&value.thumb),
             original: value.original.unwrap_or(false),
             rotate: Rotate::from(&value.rot),

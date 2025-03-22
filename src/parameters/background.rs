@@ -109,22 +109,16 @@ impl Background {
             return Some(Background(l, l, l, a));
         }
 
-        println!("{h}, {s}, {l}, {a}");
-
         let q = if l < 0.5 {
             l * (1.0 + s)
         } else {
             l + s - l * s
         };
 
-        println!("q: {}", q);
-
         let p = l + l - q;
         let r = Self::hue_to_rgb(p, q, h + (1.0 / 3.0));
         let g = Self::hue_to_rgb(p, q, h);
         let b = Self::hue_to_rgb(p, q, h - (1.0 / 3.0));
-
-        println!("r: {}, g: {}, b: {}", r, g, b);
 
         Some(Background(r * 255.0, g * 255.0, b * 255.0, a))
     }
@@ -176,7 +170,7 @@ impl Background {
     }
 
     pub fn from(value: &Option<String>) -> Option<Self> {
-        if let None = value {
+        if value.is_none() {
             return None;
         }
 

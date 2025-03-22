@@ -6,7 +6,7 @@ pub(crate) async fn run(
     image: VipsImage,
     url_parameters: &UrlParameters<'_>,
 ) -> PipelineResult<VipsImage> {
-    if let None = url_parameters.background {
+    if url_parameters.background.is_none() {
         return Ok(image);
     }
 

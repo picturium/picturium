@@ -4,7 +4,7 @@ use picturium_libvips::Vips;
 use crate::cache;
 use crate::parameters::{Rotate, UrlParameters};
 use crate::pipeline::icc::uses_srgb_color_profile;
-use crate::services::formats::{is_svg, OutputFormat, supports_transparency, validate_output_format};
+use crate::services::formats::{OutputFormat, supports_transparency, validate_output_format};
 
 mod thumbnail;
 mod rotate;
@@ -14,6 +14,7 @@ mod finalize;
 mod rasterize;
 mod background;
 mod icc;
+mod load;
 
 pub type PipelineResult<T> = Result<T, PipelineError>;
 
@@ -26,14 +27,13 @@ pub enum PipelineOutput {
 }
 
 pub async fn run(url_parameters: &UrlParameters<'_>, output_format: OutputFormat) -> PipelineResult<PipelineOutput> {
-    let mut image = thumbnail::run(url_parameters.path, url_parameters).await?;
+    let mut image = match load::run(url_parameters.path, url_parameters).await? {
+        Some(image) => image,
+        None => thumbnail::run(url_parameters.path, url_parameters).await?
+    };
 
     if output_format == OutputFormat::Pdf {
         return Ok(PipelineOutput::Image(cache::get_document_path_from_url_parameters(url_parameters).into()));
-    }
-
-    if is_svg(url_parameters.path) {
-        image = rasterize::run(image, url_parameters).await?;
     }
 
     let perform_icc_transform = !uses_srgb_color_profile(&image);
