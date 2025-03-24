@@ -6,7 +6,7 @@ use crate::cache;
 use crate::cache::{get_document_path_from_url_parameters, index};
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::pipeline::resize::get_rasterize_dimensions;
+use crate::services::dimensions::get_rasterize_dimensions;
 use crate::services::formats::{get_extension};
 
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {

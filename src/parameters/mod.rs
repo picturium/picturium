@@ -9,6 +9,7 @@ pub use rotate::Rotate;
 pub use thumbnail::Thumbnail;
 
 use crate::crypto::verify_hmac;
+use crate::parameters::aspect_ratio::AspectRatio;
 use crate::parameters::format::Format;
 use crate::parameters::load::Load;
 
@@ -19,6 +20,7 @@ pub mod origin;
 pub mod crop;
 pub mod format;
 mod load;
+mod aspect_ratio;
 
 pub type ParametersResult<T> = Result<T, &'static str>;
 
@@ -26,6 +28,7 @@ pub type ParametersResult<T> = Result<T, &'static str>;
 pub struct RawUrlParameters {
     w: Option<u16>,
     h: Option<u16>,
+    ar: Option<String>,
     q: Option<u8>,
     dpr: Option<f32>,
     crop: Option<String>,
@@ -69,6 +72,7 @@ pub struct UrlParameters<'a> {
     pub path: &'a Path,
     pub width: Option<u16>,
     pub height: Option<u16>,
+    pub aspect_ratio: AspectRatio,
     pub quality: Quality,
     pub crop: Option<Crop>,
     pub load: Load,
@@ -90,6 +94,7 @@ impl<'a> UrlParameters<'a> {
             path: Path::new(path),
             width,
             height,
+            aspect_ratio: AspectRatio::from(&value.ar),
             quality: match value.q {
                 Some(q) => Quality::Custom(q),
                 None => Quality::Default

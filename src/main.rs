@@ -44,7 +44,7 @@ async fn main() -> std::io::Result<()> {
     let vips_concurrency = env::var("VIPS_CONCURRENCY").unwrap_or("0".into()).parse::<i32>().unwrap_or(0);
     let mut workers = env::var("WORKERS").unwrap_or("0".into()).parse::<usize>().unwrap_or(0);
 
-    if workers <= 0 {
+    if workers == 0 {
         workers = num_cpus::get();
     }
 

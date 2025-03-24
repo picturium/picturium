@@ -17,6 +17,7 @@ use crate::services::formats::is_generated;
 
 pub mod formats;
 pub mod scheduler;
+pub mod dimensions;
 
 #[get("{path:.*}")]
 pub async fn serve(req: HttpRequest, path: Path<String>, parameters: Query<HashMap<String, String>>, raw_url_parameters: Query<RawUrlParameters>) -> impl Responder {

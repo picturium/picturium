@@ -42,7 +42,7 @@ impl Background {
     }
 
     fn parse_rgb(value: &str) -> Option<Self> {
-        let parts = value.split(",").collect::<Vec<&str>>();
+        let parts: Vec<&str> = value.split(",").collect();
 
         if parts.len() != 3 && parts.len() != 4 {
             return None;
@@ -75,7 +75,7 @@ impl Background {
     }
 
     fn parse_hsl(value: &str) -> Option<Self> {
-        let parts = value.split(",").collect::<Vec<&str>>();
+        let parts: Vec<&str> = value.split(",").collect();
 
         if parts.len() != 3 && parts.len() != 4 {
             return None;
@@ -199,12 +199,7 @@ impl Background {
 
 impl From<&Background> for Vec<f64> {
     fn from(value: &Background) -> Self {
-        vec![
-            value.0 as f64,
-            value.1 as f64,
-            value.2 as f64,
-            value.3 as f64,
-        ]
+        vec![value.0, value.1, value.2, value.3]
     }
 }
 
