@@ -10,6 +10,7 @@ use log::debug;
 
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
+use crate::pipeline::resize::get_dimensions;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum VideoBackend {
@@ -120,6 +121,42 @@ fn parse_thumbnail_positions() -> Vec<ThumbnailPosition> {
     } else {
         positions
     }
+}
+
+fn calculate_thumbnail_dimensions(url_parameters: &UrlParameters<'_>) -> (i32, i32) {
+    // If neither width nor height is specified, use a reasonable default
+    // Otherwise, use the get_dimensions logic from resize module
+    let (width, height) = if url_parameters.width.is_none() && url_parameters.height.is_none() {
+        // Return original size - we'll need to handle this in the backend implementations
+        // For now, use a sensible default
+        (0, 0) // 0 indicates original size
+    } else {
+        // Create a dummy 1x1 image to calculate dimensions
+        // This is a workaround since we don't have the actual video dimensions yet
+        match VipsImage::black(1920, 1080) {
+            Ok(dummy_image) => get_dimensions(&dummy_image, url_parameters),
+            Err(_) => {
+                // Fallback to simple calculation
+                let width = url_parameters.width.unwrap_or(300) as i32;
+                let height = url_parameters.height.unwrap_or(300) as i32;
+                (width, height)
+            }
+        }
+    };
+    
+    (width, height)
+}
+
+fn get_cache_dir() -> Result<String, PipelineError> {
+    let cache_path = env::var("CACHE").unwrap_or(env::temp_dir().to_string_lossy().to_string());
+    let video_cache = Path::new(&cache_path).join("video");
+    
+    if !video_cache.exists() {
+        fs::create_dir_all(&video_cache)
+            .map_err(|e| PipelineError(format!("Failed to create video cache directory: {}", e)))?;
+    }
+    
+    Ok(cache_path)
 }
 
 pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
