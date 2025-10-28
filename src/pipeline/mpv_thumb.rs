@@ -10,7 +10,6 @@ use log::debug;
 
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
-use crate::pipeline::resize::get_dimensions;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum VideoBackend {
@@ -29,17 +28,6 @@ impl ThumbnailPosition {
         match self {
             ThumbnailPosition::Percentage(p) => format!("{}%", p),
             ThumbnailPosition::Frame(f) => format!("#{}", f),
-        }
-    }
-
-    fn to_ffmpeg_arg(&self, _duration: Option<f64>) -> String {
-        match self {
-            ThumbnailPosition::Percentage(p) => {
-                // ffmpeg uses seconds, we'll calculate from percentage if duration is known
-                // For now, we'll use a simple heuristic
-                format!("{}%", p)
-            }
-            ThumbnailPosition::Frame(f) => format!("{}", f),
         }
     }
 }
@@ -124,27 +112,23 @@ fn parse_thumbnail_positions() -> Vec<ThumbnailPosition> {
 }
 
 fn calculate_thumbnail_dimensions(url_parameters: &UrlParameters<'_>) -> (i32, i32) {
-    // If neither width nor height is specified, use a reasonable default
-    // Otherwise, use the get_dimensions logic from resize module
-    let (width, height) = if url_parameters.width.is_none() && url_parameters.height.is_none() {
-        // Return original size - we'll need to handle this in the backend implementations
-        // For now, use a sensible default
-        (0, 0) // 0 indicates original size
-    } else {
-        // Create a dummy 1x1 image to calculate dimensions
-        // This is a workaround since we don't have the actual video dimensions yet
-        match VipsImage::black(1920, 1080) {
-            Ok(dummy_image) => get_dimensions(&dummy_image, url_parameters),
-            Err(_) => {
-                // Fallback to simple calculation
-                let width = url_parameters.width.unwrap_or(300) as i32;
-                let height = url_parameters.height.unwrap_or(300) as i32;
-                (width, height)
-            }
-        }
-    };
+    // Calculate dimensions similar to get_dimensions in resize.rs
+    // If neither width nor height is specified, return 0 to indicate original size
+    if url_parameters.width.is_none() && url_parameters.height.is_none() {
+        return (0, 0); // 0 indicates original size should be used
+    }
     
-    (width, height)
+    let width = url_parameters.width.map(|w| w as i32);
+    let height = url_parameters.height.map(|h| h as i32);
+    
+    // If only one dimension is specified, the backend will maintain aspect ratio
+    // If both are specified, use both
+    match (width, height) {
+        (Some(w), Some(h)) => (w, h),
+        (Some(w), None) => (w, -1), // -1 indicates auto-calculate to maintain aspect ratio
+        (None, Some(h)) => (-1, h),
+        (None, None) => (0, 0), // Original size
+    }
 }
 
 fn get_cache_dir() -> Result<String, PipelineError> {
@@ -159,36 +143,53 @@ fn get_cache_dir() -> Result<String, PipelineError> {
     Ok(cache_path)
 }
 
-pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
+fn generate_thumbnail_mpv(
+    working_file: &Path,
+    url_parameters: &UrlParameters<'_>,
+    positions: &[ThumbnailPosition],
+    cache_path: &str,
+) -> PipelineResult<VipsImage> {
     let mut best_thumbnail = None;
     let mut best_size = 0;
-    let size = url_parameters.width.unwrap_or(300).to_string();
+    
+    let (width, height) = calculate_thumbnail_dimensions(url_parameters);
+    
+    // Determine scale filter for mpv
+    // mpv format: scale=width:height or scale=width:height/dar to preserve aspect ratio
+    let scale_filter = match (width, height) {
+        (0, 0) => String::new(), // Original size, no scaling
+        (w, -1) | (w, 0) if w > 0 => format!("--vf=scale={}:-1", w), // Width specified, auto height
+        (-1, h) | (0, h) if h > 0 => format!("--vf=scale=-1:{}", h), // Height specified, auto width
+        (w, h) if w > 0 && h > 0 => format!("--vf=scale={}:{}", w, h), // Both specified
+        _ => "--vf=scale=300:-1".to_string(), // Fallback
+    };
+    
     let path_str = working_file.to_string_lossy();
-    let cache_path = env::var("CACHE").unwrap_or(env::temp_dir().to_string_lossy().to_string());
-    if !Path::new(&cache_path).join("video").exists() {
-        if let Err(e) = fs::create_dir_all(Path::new(&cache_path).join("video")) {
-            return Err(PipelineError(format!("Failed to create video directory: {}", e)));
-        }
-    }
-    let mpv_executable = env::var("MPV").unwrap_or("mpv".to_string());
+    
     // Try thumbnailing at different positions
-    for start in ["25%", "20%", "15%", "0"] {
-        let temp_path = Path::new(&cache_path).join("video").join(format!(
+    for position in positions {
+        let position_str = position.to_mpv_arg();
+        let temp_path = Path::new(cache_path).join("video").join(format!(
             "mpv-thumbnailer-{}-{}.png",
             hash(&path_str),
-            start.replace("%", "")
+            position_str.replace("%", "").replace("#", "f")
         ));
 
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
         // Generate thumbnail with mpv
-        let status = Command::new(&mpv_executable)
-            .arg("--really-quiet")
+        let mut cmd = Command::new("mpv");
+        cmd.arg("--really-quiet")
             .arg("--no-config")
             .arg("--aid=no")
-            .arg("--sid=no")
-            .arg(format!("--vf=scale={}:{}/dar", size, size))
-            .arg(format!("--start={}", start))
+            .arg("--sid=no");
+        
+        if !scale_filter.is_empty() {
+            cmd.arg(&scale_filter);
+        }
+        
+        let status = cmd
+            .arg(format!("--start={}", position_str))
             .arg("--frames=1")
             .arg(format!("--o={}", temp_path_str))
             .arg(working_file)
@@ -198,7 +199,8 @@ pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParamet
             Ok(status) if status.success() && temp_path.exists() => {
                 if let Ok(metadata) = temp_path.metadata() {
                     let file_size = metadata.len();
-                    if file_size > best_size {
+                    // Fix: properly compare file sizes (not just > 0)
+                    if file_size > 0 && file_size > best_size {
                         best_size = file_size;
                         best_thumbnail = Some(temp_path.clone());
                     }
@@ -206,27 +208,135 @@ pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParamet
             }
             _ => continue,
         }
+    }
 
-        if best_thumbnail.is_some() {
-            break;
+    // Clean up temp files and return result
+    match best_thumbnail {
+        Some(path) => {
+            debug!("Using mpv thumbnail from {}", path.to_string_lossy());
+            let path_str = path.to_string_lossy().to_string();
+            if !path.exists() {
+                return Err(PipelineError(format!("Thumbnail file does not exist: {}", path_str)));
+            }
+            let result = VipsImage::new_from_file(&path_str)
+                .map_err(|e| PipelineError(format!("Failed to load video thumbnail: {}", e)));
+            result
+        }
+        None => Err(PipelineError("Failed to generate video thumbnail with mpv".to_string())),
+    }
+}
+
+fn generate_thumbnail_ffmpeg(
+    working_file: &Path,
+    url_parameters: &UrlParameters<'_>,
+    positions: &[ThumbnailPosition],
+    cache_path: &str,
+) -> PipelineResult<VipsImage> {
+    let mut best_thumbnail = None;
+    let mut best_size = 0;
+    
+    let (width, height) = calculate_thumbnail_dimensions(url_parameters);
+    
+    let path_str = working_file.to_string_lossy();
+    
+    // Try thumbnailing at different positions
+    for position in positions {
+        let temp_path = Path::new(cache_path).join("video").join(format!(
+            "ffmpeg-thumbnailer-{}-{}.png",
+            hash(&path_str),
+            match position {
+                ThumbnailPosition::Percentage(p) => format!("{}pct", p),
+                ThumbnailPosition::Frame(f) => format!("{}f", f),
+            }
+        ));
+
+        let temp_path_str = temp_path.to_string_lossy().to_string();
+
+        // Build ffmpeg command based on position type
+        let mut cmd = Command::new("ffmpeg");
+        cmd.arg("-v").arg("quiet"); // Suppress output
+        
+        // Build video filter chain
+        let mut vfilters = Vec::new();
+        
+        match position {
+            ThumbnailPosition::Percentage(p) => {
+                // For percentages, we use -ss with a percentage
+                // Note: ffmpeg doesn't directly support percentages, so we approximate
+                // For now, use the percentage as a rough time estimate (assuming typical video length)
+                cmd.arg("-ss").arg(format!("{}%", p));
+            }
+            ThumbnailPosition::Frame(f) => {
+                // For frames, seek to specific frame
+                vfilters.push(format!("select='eq(n\\,{})'", f));
+            }
+        }
+        
+        // Add scale filter if dimensions are specified
+        let scale_filter = match (width, height) {
+            (0, 0) => None, // Original size, no scaling
+            (w, -1) | (w, 0) if w > 0 => Some(format!("scale={}:-1", w)),
+            (-1, h) | (0, h) if h > 0 => Some(format!("scale=-1:{}", h)),
+            (w, h) if w > 0 && h > 0 => Some(format!("scale={}:{}", w, h)),
+            _ => Some("scale=300:-1".to_string()),
+        };
+        
+        if let Some(scale) = scale_filter {
+            vfilters.push(scale);
+        }
+        
+        cmd.arg("-i").arg(working_file)
+            .arg("-vframes").arg("1");
+        
+        // Apply video filters if any
+        if !vfilters.is_empty() {
+            cmd.arg("-vf").arg(vfilters.join(","));
+        }
+        
+        cmd.arg("-y") // Overwrite output file
+            .arg(&temp_path_str);
+
+        let status = cmd.status();
+
+        match status {
+            Ok(status) if status.success() && temp_path.exists() => {
+                if let Ok(metadata) = temp_path.metadata() {
+                    let file_size = metadata.len();
+                    // Fix: properly compare file sizes
+                    if file_size > 0 && file_size > best_size {
+                        best_size = file_size;
+                        best_thumbnail = Some(temp_path.clone());
+                    }
+                }
+            }
+            _ => continue,
         }
     }
 
     // Clean up temp files and return result
     match best_thumbnail {
         Some(path) => {
-            debug!("Using thumbnail from {}", path.to_string_lossy());
+            debug!("Using ffmpeg thumbnail from {}", path.to_string_lossy());
             let path_str = path.to_string_lossy().to_string();
-            //check if file exists
             if !path.exists() {
                 return Err(PipelineError(format!("Thumbnail file does not exist: {}", path_str)));
             }
             let result = VipsImage::new_from_file(&path_str)
                 .map_err(|e| PipelineError(format!("Failed to load video thumbnail: {}", e)));
-            //let _ = fs::remove_file(path);
             result
         }
-        None => Err(PipelineError("Failed to generate video thumbnail".to_string())),
+        None => Err(PipelineError("Failed to generate video thumbnail with ffmpeg".to_string())),
+    }
+}
+
+pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
+    let backend = get_video_backend()?;
+    let positions = parse_thumbnail_positions();
+    let cache_path = get_cache_dir()?;
+    
+    match backend {
+        VideoBackend::FFmpeg => generate_thumbnail_ffmpeg(working_file, url_parameters, &positions, &cache_path),
+        VideoBackend::Mpv => generate_thumbnail_mpv(working_file, url_parameters, &positions, &cache_path),
     }
 }
 
