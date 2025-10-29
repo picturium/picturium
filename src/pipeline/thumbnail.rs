@@ -12,7 +12,7 @@ use crate::pipeline::{PipelineError, PipelineResult};
 use crate::pipeline::resize::get_rasterize_dimensions;
 use crate::services::formats::{get_extension, is_thumbnail_format};
 use crate::services::vips::get_error_message;
-use crate::pipeline::mpv_thumb::generate_video_thumbnail;
+use crate::pipeline::video_thumb::generate_video_thumbnail;
 
 pub(crate) async fn run(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
 
