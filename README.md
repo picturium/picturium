@@ -74,7 +74,7 @@ Supports all file formats in pass-through mode, but some of them get special tre
 - DOC, DOCX, ODT, RTF (for thumbnail generation or pass-through)
 - XLS, XLSX, ODS (for thumbnail generation or pass-through)
 - PPT, PPTX, ODP (for thumbnail generation or pass-through)
-- MP4, MKV, WEBM, AVI, MOV, FLV, WMV, MPG, MPEG, 3GP, OGV, M4V (for thumbnail generation using `mpv`)
+- MP4, MKV, WEBM, AVI, MOV, FLV, WMV, MPG, MPEG, 3GP, OGV, M4V (for thumbnail generation using `ffmpeg` or `mpv`)
 
 ### Output formats
 
@@ -96,6 +96,33 @@ Supports all file formats in pass-through mode, but some of them get special tre
 
 All files are served from the working directory. The working directory in docker images is located at `/app`.\
 For example file located at `/app/data/image.jpeg` will be available at `https://.../data/image.jpeg`.
+
+
+## Video Thumbnail Generation
+
+picturium supports generating thumbnails from video files using either `ffmpeg` or `mpv`.
+
+### Configuration
+
+- `VIDEO_BACKEND`: Select the video thumbnail backend (default: `auto`)
+  - `auto`: Automatically detect available backend, preferring ffmpeg for better performance
+  - `ffmpeg`: Use ffmpeg (requires ffmpeg in system PATH)
+  - `mpv`: Use mpv (requires mpv in system PATH)
+
+- `VIDEO_THUMBNAIL_POSITIONS`: Comma-separated list of positions to sample for best thumbnail (default: `25%,20%,15%,0`)
+  - Supports percentages (e.g., `25%,50%,75%`)
+  - Supports frame numbers (e.g., `30,60,90`)
+  - The system will try each position and select the frame with the largest file size (usually indicates more content)
+
+### Examples
+
+```bash
+# Use ffmpeg with custom sampling positions
+VIDEO_BACKEND=ffmpeg VIDEO_THUMBNAIL_POSITIONS="10%,25%,50%,75%" cargo run
+
+# Use mpv with specific frame numbers
+VIDEO_BACKEND=mpv VIDEO_THUMBNAIL_POSITIONS="100,200,300" cargo run
+```
 
 
 ## Token authorization
