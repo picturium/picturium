@@ -15,6 +15,8 @@ use crate::pipeline::{PipelineError, PipelineResult};
 enum VideoBackend {
     FFmpeg,
     Mpv,
+    #[cfg(feature = "native-ffmpeg")]
+    NativeFFmpeg,
 }
 
 #[derive(Debug, Clone)]
