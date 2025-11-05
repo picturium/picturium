@@ -35,7 +35,14 @@ impl ThumbnailPosition {
 }
 
 fn detect_available_backend() -> Option<VideoBackend> {
-    // Check ffmpeg first (better performance according to maintainer)
+    // Check native-ffmpeg first (best performance, no process spawning)
+    #[cfg(feature = "native-ffmpeg")]
+    {
+        return Some(VideoBackend::NativeFFmpeg);
+    }
+    
+    // Check command-line ffmpeg (better performance than mpv)
+    #[cfg(not(feature = "native-ffmpeg"))]
     if Command::new("ffmpeg").arg("-version").output().is_ok() {
         return Some(VideoBackend::FFmpeg);
     }
@@ -52,6 +59,16 @@ fn get_video_backend() -> Result<VideoBackend, PipelineError> {
     let backend_env = env::var("VIDEO_BACKEND").unwrap_or_else(|_| "auto".to_string());
     
     match backend_env.to_lowercase().as_str() {
+        "native" => {
+            #[cfg(feature = "native-ffmpeg")]
+            {
+                Ok(VideoBackend::NativeFFmpeg)
+            }
+            #[cfg(not(feature = "native-ffmpeg"))]
+            {
+                Err(PipelineError("native backend requested but native-ffmpeg feature not enabled".to_string()))
+            }
+        }
         "ffmpeg" => {
             if Command::new("ffmpeg").arg("-version").output().is_ok() {
                 Ok(VideoBackend::FFmpeg)
