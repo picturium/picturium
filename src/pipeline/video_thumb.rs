@@ -11,6 +11,9 @@ use log::debug;
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
 
+#[cfg(feature = "native-ffmpeg")]
+use ffmpeg_next as ffmpeg;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum VideoBackend {
     FFmpeg,
@@ -43,16 +46,18 @@ fn detect_available_backend() -> Option<VideoBackend> {
     
     // Check command-line ffmpeg (better performance than mpv)
     #[cfg(not(feature = "native-ffmpeg"))]
-    if Command::new("ffmpeg").arg("-version").output().is_ok() {
-        return Some(VideoBackend::FFmpeg);
+    {
+        if Command::new("ffmpeg").arg("-version").output().is_ok() {
+            return Some(VideoBackend::FFmpeg);
+        }
+        
+        // Fallback to mpv
+        if Command::new("mpv").arg("--version").output().is_ok() {
+            return Some(VideoBackend::Mpv);
+        }
+        
+        None
     }
-    
-    // Fallback to mpv
-    if Command::new("mpv").arg("--version").output().is_ok() {
-        return Some(VideoBackend::Mpv);
-    }
-    
-    None
 }
 
 fn get_video_backend() -> Result<VideoBackend, PipelineError> {
@@ -348,6 +353,191 @@ fn generate_thumbnail_ffmpeg(
     }
 }
 
+#[cfg(feature = "native-ffmpeg")]
+fn generate_thumbnail_native_ffmpeg(
+    working_file: &Path,
+    url_parameters: &UrlParameters<'_>,
+    positions: &[ThumbnailPosition],
+    cache_path: &str,
+) -> PipelineResult<VipsImage> {
+    use ffmpeg::format::{input, Pixel};
+    use ffmpeg::media::Type;
+    use ffmpeg::software::scaling::{context::Context, flag::Flags};
+    use ffmpeg::util::frame::video::Video;
+    use std::fs::File;
+    use std::io::Write;
+    
+    // Initialize ffmpeg (safe to call multiple times)
+    ffmpeg::init().map_err(|e| PipelineError(format!("Failed to initialize ffmpeg: {}", e)))?;
+    
+    let mut best_thumbnail = None;
+    let mut best_size = 0;
+    
+    let (width, height) = calculate_thumbnail_dimensions(url_parameters);
+    let target_width = if width > 0 { width as u32 } else { 0 };
+    let target_height = if height > 0 { height as u32 } else { 0 };
+    
+    let path_str = working_file.to_string_lossy();
+    let working_file_str = working_file.to_str()
+        .ok_or_else(|| PipelineError("Invalid file path".to_string()))?;
+    
+    // Open input video
+    let mut ictx = input(&working_file_str)
+        .map_err(|e| PipelineError(format!("Failed to open video: {}", e)))?;
+    
+    // Find best video stream and extract needed info before borrowing mutably
+    let (video_stream_index, time_base, avg_frame_rate, decoder_params) = {
+        let video_stream = ictx.streams()
+            .best(Type::Video)
+            .ok_or_else(|| PipelineError("No video stream found".to_string()))?;
+        (
+            video_stream.index(),
+            video_stream.time_base(),
+            video_stream.avg_frame_rate(),
+            video_stream.parameters(),
+        )
+    };
+    
+    // Get video duration for percentage calculations
+    let duration_secs = ictx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE);
+    
+    // Create decoder
+    let context_decoder = ffmpeg::codec::context::Context::from_parameters(decoder_params)
+        .map_err(|e| PipelineError(format!("Failed to create decoder context: {}", e)))?;
+    let mut decoder = context_decoder.decoder().video()
+        .map_err(|e| PipelineError(format!("Failed to create video decoder: {}", e)))?;
+    
+    // Determine output dimensions
+    let (out_width, out_height) = if target_width == 0 && target_height == 0 {
+        (decoder.width(), decoder.height())
+    } else if target_width == 0 {
+        let ratio = decoder.width() as f64 / decoder.height() as f64;
+        ((target_height as f64 * ratio) as u32, target_height)
+    } else if target_height == 0 {
+        let ratio = decoder.height() as f64 / decoder.width() as f64;
+        (target_width, (target_width as f64 * ratio) as u32)
+    } else {
+        (target_width, target_height)
+    };
+    
+    // Try each position
+    for position in positions {
+        // Calculate target timestamp
+        let target_timestamp = match position {
+            ThumbnailPosition::Percentage(p) => {
+                let target_secs = duration_secs * (*p as f64 / 100.0);
+                (target_secs * time_base.denominator() as f64 / time_base.numerator() as f64) as i64
+            }
+            ThumbnailPosition::Frame(f) => {
+                // Calculate timestamp from frame number
+                let frame_duration = avg_frame_rate.denominator() as f64 / avg_frame_rate.numerator() as f64;
+                let target_secs = *f as f64 * frame_duration;
+                (target_secs * time_base.denominator() as f64 / time_base.numerator() as f64) as i64
+            }
+        };
+        
+        // Seek to position
+        if let Err(e) = ictx.seek(target_timestamp, ..target_timestamp) {
+            debug!("Failed to seek to position {:?}: {}", position, e);
+            continue;
+        }
+        
+        // Decode frame at position
+        for (stream, packet) in ictx.packets() {
+            if stream.index() == video_stream_index {
+                if let Err(e) = decoder.send_packet(&packet) {
+                    debug!("Failed to send packet: {}", e);
+                    continue;
+                }
+                
+                let mut decoded = Video::empty();
+                if decoder.receive_frame(&mut decoded).is_ok() {
+                    // Create scaler
+                    let mut scaler = Context::get(
+                        decoder.format(),
+                        decoder.width(),
+                        decoder.height(),
+                        Pixel::RGB24,
+                        out_width,
+                        out_height,
+                        Flags::BILINEAR,
+                    ).map_err(|e| PipelineError(format!("Failed to create scaler: {}", e)))?;
+                    
+                    // Scale frame
+                    let mut rgb_frame = Video::empty();
+                    scaler.run(&decoded, &mut rgb_frame)
+                        .map_err(|e| PipelineError(format!("Failed to scale frame: {}", e)))?;
+                    
+                    // Save as PNG
+                    let temp_path = Path::new(cache_path).join("video").join(format!(
+                        "native-thumbnailer-{}-{}.png",
+                        hash(&path_str),
+                        match position {
+                            ThumbnailPosition::Percentage(p) => format!("{}pct", p),
+                            ThumbnailPosition::Frame(f) => format!("{}f", f),
+                        }
+                    ));
+                    
+                    // Save frame as PPM first (simple format), then we'll convert
+                    // Actually, let's save as raw RGB and use libvips to create PNG
+                    let temp_path_str = temp_path.to_string_lossy().to_string();
+                    
+                    // For now, save as PPM and convert with libvips
+                    let ppm_path = temp_path.with_extension("ppm");
+                    let ppm_path_str = ppm_path.to_string_lossy().to_string();
+                    
+                    let mut file = File::create(&ppm_path)
+                        .map_err(|e| PipelineError(format!("Failed to create temp file: {}", e)))?;
+                    file.write_all(format!("P6\n{} {}\n255\n", rgb_frame.width(), rgb_frame.height()).as_bytes())
+                        .map_err(|e| PipelineError(format!("Failed to write PPM header: {}", e)))?;
+                    file.write_all(rgb_frame.data(0))
+                        .map_err(|e| PipelineError(format!("Failed to write frame data: {}", e)))?;
+                    drop(file);
+                    
+                    // Load with libvips and save as PNG
+                    let vips_img = VipsImage::new_from_file(&ppm_path_str)
+                        .map_err(|e| PipelineError(format!("Failed to load frame with libvips: {}", e)))?;
+                    vips_img.image_write_to_file(&temp_path_str)
+                        .map_err(|e| PipelineError(format!("Failed to save PNG: {}", e)))?;
+                    
+                    // Clean up PPM
+                    let _ = fs::remove_file(&ppm_path);
+                    
+                    // Check file size
+                    if let Ok(metadata) = temp_path.metadata() {
+                        let file_size = metadata.len();
+                        if file_size > 0 && file_size > best_size {
+                            best_size = file_size;
+                            best_thumbnail = Some(temp_path.clone());
+                        }
+                    }
+                    
+                    // Found a frame, move to next position
+                    break;
+                }
+            }
+        }
+        
+        // Flush decoder
+        let _ = decoder.send_eof();
+    }
+    
+    // Return best thumbnail
+    match best_thumbnail {
+        Some(path) => {
+            debug!("Using native ffmpeg thumbnail from {}", path.to_string_lossy());
+            let path_str = path.to_string_lossy().to_string();
+            if !path.exists() {
+                return Err(PipelineError(format!("Thumbnail file does not exist: {}", path_str)));
+            }
+            let result = VipsImage::new_from_file(&path_str)
+                .map_err(|e| PipelineError(format!("Failed to load video thumbnail: {}", e)));
+            result
+        }
+        None => Err(PipelineError("Failed to generate video thumbnail with native ffmpeg".to_string())),
+    }
+}
+
 pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
     let backend = get_video_backend()?;
     let positions = parse_thumbnail_positions();
@@ -356,6 +546,8 @@ pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParamet
     match backend {
         VideoBackend::FFmpeg => generate_thumbnail_ffmpeg(working_file, url_parameters, &positions, &cache_path),
         VideoBackend::Mpv => generate_thumbnail_mpv(working_file, url_parameters, &positions, &cache_path),
+        #[cfg(feature = "native-ffmpeg")]
+        VideoBackend::NativeFFmpeg => generate_thumbnail_native_ffmpeg(working_file, url_parameters, &positions, &cache_path),
     }
 }
 
