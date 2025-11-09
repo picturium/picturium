@@ -100,24 +100,53 @@ For example file located at `/app/data/image.jpeg` will be available at `https:/
 
 ## Video Thumbnail Generation
 
-picturium supports generating thumbnails from video files using either `ffmpeg` or `mpv`.
+picturium supports generating thumbnails from video files using multiple backends.
+
+### Available Backends
+
+1. **Native FFmpeg** (Recommended) - In-process video decoding via libav bindings
+   - Best performance (no process spawning overhead)
+   - Requires `native-ffmpeg` feature flag at compile time
+   - Enabled by default in Nix builds
+
+2. **Command-line FFmpeg** - Spawns ffmpeg process
+   - Good performance (~33% faster than mpv)
+   - Requires ffmpeg in system PATH
+
+3. **Command-line MPV** - Spawns mpv process
+   - Fallback option
+   - Requires mpv in system PATH
 
 ### Configuration
 
 - `VIDEO_BACKEND`: Select the video thumbnail backend (default: `auto`)
-  - `auto`: Automatically detect available backend, preferring ffmpeg for better performance
-  - `ffmpeg`: Use ffmpeg (requires ffmpeg in system PATH)
-  - `mpv`: Use mpv (requires mpv in system PATH)
+  - `auto`: Automatically detect available backend (native > ffmpeg > mpv)
+  - `native`: Use native ffmpeg (error if feature not enabled)
+  - `ffmpeg`: Use command-line ffmpeg (requires ffmpeg in PATH)
+  - `mpv`: Use command-line mpv (requires mpv in PATH)
 
 - `VIDEO_THUMBNAIL_POSITIONS`: Comma-separated list of positions to sample for best thumbnail (default: `25%,20%,15%,0`)
   - Supports percentages (e.g., `25%,50%,75%`)
   - Supports frame numbers (e.g., `30,60,90`)
   - The system will try each position and select the frame with the largest file size (usually indicates more content)
 
+### Building with Native FFmpeg
+
+```bash
+# With Cargo
+cargo build --release --features native-ffmpeg
+
+# With Nix (native-ffmpeg enabled by default)
+nix build
+```
+
 ### Examples
 
 ```bash
-# Use ffmpeg with custom sampling positions
+# Use native backend (best performance)
+VIDEO_BACKEND=native cargo run
+
+# Use command-line ffmpeg with custom sampling positions
 VIDEO_BACKEND=ffmpeg VIDEO_THUMBNAIL_POSITIONS="10%,25%,50%,75%" cargo run
 
 # Use mpv with specific frame numbers
