@@ -11,6 +11,117 @@ use log::debug;
 use crate::parameters::UrlParameters;
 use crate::pipeline::{PipelineError, PipelineResult};
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum VideoBackend {
+    FFmpeg,
+    Mpv,
+}
+
+#[derive(Debug, Clone)]
+enum ThumbnailPosition {
+    Percentage(u8),
+    Frame(u32),
+}
+
+impl ThumbnailPosition {
+    fn to_mpv_arg(&self) -> String {
+        match self {
+            ThumbnailPosition::Percentage(p) => format!("{}%", p),
+            ThumbnailPosition::Frame(f) => format!("#{}", f),
+        }
+    }
+
+    fn to_ffmpeg_arg(&self, _duration: Option<f64>) -> String {
+        match self {
+            ThumbnailPosition::Percentage(p) => {
+                // ffmpeg uses seconds, we'll calculate from percentage if duration is known
+                // For now, we'll use a simple heuristic
+                format!("{}%", p)
+            }
+            ThumbnailPosition::Frame(f) => format!("{}", f),
+        }
+    }
+}
+
+fn detect_available_backend() -> Option<VideoBackend> {
+    // Check ffmpeg first (better performance according to maintainer)
+    if Command::new("ffmpeg").arg("-version").output().is_ok() {
+        return Some(VideoBackend::FFmpeg);
+    }
+    
+    // Fallback to mpv
+    if Command::new("mpv").arg("--version").output().is_ok() {
+        return Some(VideoBackend::Mpv);
+    }
+    
+    None
+}
+
+fn get_video_backend() -> Result<VideoBackend, PipelineError> {
+    let backend_env = env::var("VIDEO_BACKEND").unwrap_or_else(|_| "auto".to_string());
+    
+    match backend_env.to_lowercase().as_str() {
+        "ffmpeg" => {
+            if Command::new("ffmpeg").arg("-version").output().is_ok() {
+                Ok(VideoBackend::FFmpeg)
+            } else {
+                Err(PipelineError("ffmpeg backend requested but not available in PATH".to_string()))
+            }
+        }
+        "mpv" => {
+            if Command::new("mpv").arg("--version").output().is_ok() {
+                Ok(VideoBackend::Mpv)
+            } else {
+                Err(PipelineError("mpv backend requested but not available in PATH".to_string()))
+            }
+        }
+        "auto" | _ => {
+            detect_available_backend()
+                .ok_or_else(|| PipelineError("No video thumbnail backend available (neither ffmpeg nor mpv found in PATH)".to_string()))
+        }
+    }
+}
+
+fn parse_thumbnail_positions() -> Vec<ThumbnailPosition> {
+    let positions_env = env::var("VIDEO_THUMBNAIL_POSITIONS").unwrap_or_default();
+    
+    if positions_env.is_empty() {
+        // Default positions
+        return vec![
+            ThumbnailPosition::Percentage(25),
+            ThumbnailPosition::Percentage(20),
+            ThumbnailPosition::Percentage(15),
+            ThumbnailPosition::Percentage(0),
+        ];
+    }
+    
+    let mut positions = Vec::new();
+    for pos_str in positions_env.split(',') {
+        let pos_str = pos_str.trim();
+        if pos_str.ends_with('%') {
+            if let Ok(percentage) = pos_str.trim_end_matches('%').parse::<u8>() {
+                if percentage <= 100 {
+                    positions.push(ThumbnailPosition::Percentage(percentage));
+                }
+            }
+        } else if let Ok(frame) = pos_str.parse::<u32>() {
+            positions.push(ThumbnailPosition::Frame(frame));
+        }
+    }
+    
+    // If parsing failed completely, return defaults
+    if positions.is_empty() {
+        vec![
+            ThumbnailPosition::Percentage(25),
+            ThumbnailPosition::Percentage(20),
+            ThumbnailPosition::Percentage(15),
+            ThumbnailPosition::Percentage(0),
+        ]
+    } else {
+        positions
+    }
+}
+
 pub fn generate_video_thumbnail(working_file: &Path, url_parameters: &UrlParameters<'_>) -> PipelineResult<VipsImage> {
     let mut best_thumbnail = None;
     let mut best_size = 0;
