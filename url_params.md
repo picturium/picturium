@@ -78,7 +78,7 @@ Output formats
 - [ ] `filter`: apply filters to image (eg. `filter=brightness:0.5|contrast:0.5`)
   - [x] `brightness` (float): adjust image brightness [default: 1, suggested effective range: 0..5]
   - [x] `contrast` (float): adjust image contrast [default: 1, suggested effective range: 0..5]
-  - [ ] `saturation` (float): adjust image saturation [default: 1, suggested effective range: 0..2]
+  - [x] `saturate` (float): adjust image saturation [default: 1, suggested effective range: 0..5]
   - [ ] `hue` (float): adjust image hue [default: 0]
   - [ ] `bw` (bool): convert image to grayscale [default: false]
   - [ ] `palette` (string): convert image to color palette (max. 2 colors)

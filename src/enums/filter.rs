@@ -8,7 +8,7 @@ use crate::params::filter::FilterParseError;
 pub enum FilterValue {
     Brightness(f64),
     Contrast(f64),
-    Saturation(f64),
+    Saturate(f64),
     Hue(f32),
     Bw(bool),
     Palette(Vec<Background>),
@@ -34,7 +34,7 @@ impl FromStr for FilterValue {
         Ok(match key.trim().to_ascii_lowercase().as_str() {
             "brightness" => FilterValue::Brightness(value.parse().map_err(|_| FilterParseError(format!("Invalid brightness value: '{value}'")))?),
             "contrast" => FilterValue::Contrast(value.parse().map_err(|_| FilterParseError(format!("Invalid contrast value: '{value}'")))?),
-            "saturation" => FilterValue::Saturation(value.parse().map_err(|_| FilterParseError(format!("Invalid saturation value: '{value}'")))?),
+            "saturate" => FilterValue::Saturate(value.parse().map_err(|_| FilterParseError(format!("Invalid saturate value: '{value}'")))?),
             "hue" => FilterValue::Hue(value.parse().map_err(|_| FilterParseError(format!("Invalid hue value: '{value}'")))?),
             "bw" => FilterValue::Bw(value.parse().map_err(|_| FilterParseError(format!("Invalid bw value: '{value}'")))?),
             "palette" => FilterValue::Palette(value.split(',').map(|s| s.parse().map_err(|_| FilterParseError(format!("Invalid palette color: '{s}'")))).collect::<Result<Vec<_>, _>>()?),
