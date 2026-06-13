@@ -1,0 +1,5 @@
+.env
+/target
+/data
+/cache
+/.vibe/config.toml

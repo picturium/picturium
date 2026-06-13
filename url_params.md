@@ -1,0 +1,101 @@
+# URL Parameters
+
+- [ ] Caching
+  - [ ] Memory cache
+  - [ ] Disk cache
+  - [ ] Automatic cleanup
+- [x] URL token verification (signature)
+
+Input formats // from InputFormat enum
+- [ ] jpeg
+- [ ] jp2k
+- [ ] png
+- [ ] tiff
+- [ ] ico
+- [ ] gif
+- [ ] webp
+- [ ] heif
+- [ ] jxl
+- [ ] pdf
+- [x] svg
+- [ ] ai
+- [ ] eps
+- [ ] cdr
+- [ ] psd
+- [ ] bmp
+- [ ] raw
+- [x] office (doc, ppt, xls)
+- [ ] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg)
+
+Output formats
+- [x] jpeg
+- [x] webp
+- [x] png
+- [x] gif
+- [x] avif
+- [x] jxl
+- [ ] pdf
+- [ ] svg
+
+
+- [ ] `w` (int): width of the output image in pixels [default: 0]
+- [ ] `h` (int): height of the output image in pixels [default: 0]
+- [ ] `ar` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
+- [ ] `g` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
+- [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
+- [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
+- [x] `upsize` (bool): enable image upsizing [default: ENV]
+- [ ] `extend` (string): extend image to fit aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
+- [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
+- [ ] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
+- [ ] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
+- [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
+- [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
+- [ ] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
+- [x] `cache` (any): cache buster (timestamp or random string)
+- [ ] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
+- [ ] `original` (bool): return original image instead of processed one [default: false]
+- [ ] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
+- [ ] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg, ...) [default: auto]
+- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72)
+- [x] `style` (string): apply custom CSS styles to SVG image, encode in base64
+- [ ] `meta` (string): metadata to keep in output image (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: ENV]
+- [ ] `fallback` (string): fallback image URL when original image is not found or processing fails
+- [ ] `limit`
+  - [ ] `dimension` (int): maximum output image dimensions in pixels (default: ENV)
+  - [ ] `size` (int): maximum output image size in bytes (default: ENV)
+- [ ] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1,4|timing:500`
+  - [ ] `p`|`page`|`pages` (int): page of the document to generate thumbnail, [default: 1], or animate between multiple pages `1,2,3`
+  - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `p` is used as a starting page
+  - [ ] `timing` (float): animation timing in milliseconds, [default: 500]
+- [ ] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; for cropping the image, at least one of `w` or `h` must be set
+  - [ ] `w` (int): width of the crop area in pixels relative to the original image size [default: 0]
+  - [ ] `h` (int): height of the crop area in pixels relative to the original image size [default: 0]
+  - [ ] `ar`: aspect ratio of the crop area [default: auto]
+  - [ ] `g`: gravity of the crop area [default: ENV]
+  - [ ] `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported [default: 0]
+  - [ ] `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported [default: 0]
+- [ ] `filter`: apply filters to image (eg. `filter=brightness:0.5|contrast:0.5`)
+  - [x] `brightness` (float): adjust image brightness [default: 1, suggested effective range: 0..5]
+  - [x] `contrast` (float): adjust image contrast [default: 1, suggested effective range: 0..5]
+  - [ ] `saturation` (float): adjust image saturation [default: 1, suggested effective range: 0..2]
+  - [ ] `hue` (float): adjust image hue [default: 0]
+  - [ ] `bw` (bool): convert image to grayscale [default: false]
+  - [ ] `palette` (string): convert image to color palette (max. 2 colors)
+  - [ ] `invert` (bool): invert image colors [default: false]
+  - [ ] `sepia` (bool): apply sepia filter [default: false]
+  - [ ] `blur` (float): apply Gaussian blur [default: 0]
+  - [ ] `sharpen` (float): apply sharpening [default: 0]
+  - [ ] `pixelate` (float): apply pixelation [default: 0]
+- [ ] `watermark` (string): apply watermark to image, in format `watermark=image:watermark.png|opacity:50|padding:10`
+  - [ ] `false` (bool): disable watermarking [default: ENV]
+  - [ ] `anchor` (string): watermark anchor position (center, repeat, top, right, bottom, left, top-left, top-right, bottom-left, bottom-right) [default: ENV]
+  - [ ] `opacity` (int): watermark opacity [default: ENV]
+  - [ ] `pad` (int): watermark padding in px [default: ENV]
+  - [ ] `rot` (float): watermark rotation in degrees [default: ENV]
+  - [ ] `image` (string): path to watermark image [default: ENV]
+  - [ ] `scale` (float): watermark image scale [default: ENV]
+  - [ ] `text` (string): watermark text [default: ENV]
+  - [ ] `font` (string): watermark font family [default: ENV]
+  - [ ] `size` (int): watermark font size in px [default: ENV]
+  - [ ] `color` (string): watermark font color [default: ENV]
