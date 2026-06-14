@@ -1,3 +1,4 @@
+mod hue;
 mod saturate;
 
 use crate::enums::filter::FilterValue;
@@ -13,16 +14,22 @@ pub fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage>
             FilterValue::Brightness(value) => filter_queue.apply_brightness(*value),
             FilterValue::Contrast(value) => filter_queue.apply_contrast(*value),
             FilterValue::Saturate(value) => filter_queue.apply_saturate(*value),
+            FilterValue::Hue(value) => filter_queue.apply_hue(*value as f64),
             _ => Ok(()),
         })?;
 
     execute_filter_queue(&filter_queue, image)
 }
 
+/// Filters are collapsed per-type and applied in a fixed order (linear → saturate → hue),
+/// which diverges from strict CSS declaration-order chaining: brightness/contrast multiply
+/// into one `linear`, saturates multiply together, and hue angles sum. Order matters only
+/// when different filter types are combined in one request.
 #[derive(Debug)]
 struct FilterQueue {
     linear: Option<(f64, f64)>,
     saturate: Option<f64>,
+    hue: Option<f64>,
     divider: f64,
 }
 
@@ -31,6 +38,7 @@ impl FilterQueue {
         Self {
             linear: None,
             saturate: None,
+            hue: None,
             divider: (1 << bit_depth) as f64,
         }
     }
@@ -58,6 +66,11 @@ impl FilterQueue {
         *self.saturate.get_or_insert(1.0) *= value;
         Ok(())
     }
+
+    pub fn apply_hue(&mut self, degrees: f64) -> Result<()> {
+        *self.hue.get_or_insert(0.0) += degrees;
+        Ok(())
+    }
 }
 
 fn execute_filter_queue(queue: &FilterQueue, mut image: VipsImage) -> Result<VipsImage> {
@@ -68,6 +81,10 @@ fn execute_filter_queue(queue: &FilterQueue, mut image: VipsImage) -> Result<Vip
 
     if let Some(factor) = queue.saturate {
         image = saturate::apply(image, factor)?;
+    }
+
+    if let Some(degrees) = queue.hue {
+        image = hue::apply(image, degrees)?;
     }
 
     Ok(image)
