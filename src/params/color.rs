@@ -16,12 +16,22 @@ const BIT_DEPTH_MULTIPLIER_10: f64 = 1023.0;
 const BIT_DEPTH_MULTIPLIER_12: f64 = 4095.0;
 const BIT_DEPTH_MULTIPLIER_16: f64 = 65535.0;
 
+pub fn get_bit_depth_multiplier(bit_depth: u8) -> f64 {
+    match bit_depth {
+        8 => BIT_DEPTH_MULTIPLIER_8,
+        10 => BIT_DEPTH_MULTIPLIER_10,
+        12 => BIT_DEPTH_MULTIPLIER_12,
+        16 => BIT_DEPTH_MULTIPLIER_16,
+        _ => panic!("Unsupported bit depth: {}", bit_depth),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Color {
-    red: f64, // [0.0, 1.0]
-    green: f64, // [0.0, 1.0]
-    blue: f64, // [0.0, 1.0]
-    alpha: f64, // [0.0, 1.0]
+    pub red: f64, // [0.0, 1.0]
+    pub green: f64, // [0.0, 1.0]
+    pub blue: f64, // [0.0, 1.0]
+    pub alpha: f64, // [0.0, 1.0]
 }
 
 impl Color {
@@ -34,20 +44,13 @@ impl Color {
         )
     }
 
-    pub fn to_rgb8(&self) -> (f64, f64, f64, f64) {
-        self.to_rgb(BIT_DEPTH_MULTIPLIER_8)
+    pub fn to_rgb_with_bit_depth(&self, bit_depth: u8) -> (f64, f64, f64, f64) {
+        self.to_rgb(get_bit_depth_multiplier(bit_depth))
     }
 
-    pub fn to_rgb10(&self) -> (f64, f64, f64, f64) {
-        self.to_rgb(BIT_DEPTH_MULTIPLIER_10)
-    }
-
-    pub fn to_rgb12(&self) -> (f64, f64, f64, f64) {
-        self.to_rgb(BIT_DEPTH_MULTIPLIER_12)
-    }
-
-    pub fn to_rgb16(&self) -> (f64, f64, f64, f64) {
-        self.to_rgb(BIT_DEPTH_MULTIPLIER_16)
+    pub fn to_rgb_vec_with_bit_depth(&self, bit_depth: u8) -> Vec<f64> {
+        let (r, g, b, a) = self.to_rgb_with_bit_depth(bit_depth);
+        vec![r, g, b, a]
     }
 }
 

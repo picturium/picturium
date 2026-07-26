@@ -7,24 +7,24 @@
 - [x] URL token verification (signature)
 
 Input formats // from InputFormat enum
-- [ ] jpeg
-- [ ] jp2k
-- [ ] png
-- [ ] tiff
-- [ ] ico
-- [ ] gif
-- [ ] webp
-- [ ] heif
-- [ ] jxl
-- [ ] pdf
+- [x] jpeg
+- [x] jp2k
+- [x] png
+- [x] tiff
+- [x] ico
+- [x] gif
+- [x] webp
+- [x] heif
+- [x] jxl
+- [x] pdf
 - [x] svg
-- [ ] ai
-- [ ] eps
-- [ ] cdr
-- [ ] psd
-- [ ] bmp
-- [ ] raw
+- [x] eps
+- [x] psd
+- [x] bmp
+- [x] raw (raw, rw2, raf, pef, orf, nrw, nef, dng, cr2, cr3, crw, arw)
 - [x] office (doc, ppt, xls)
+- [ ] ai (inkscape)
+- [ ] cdr (inkscape)
 - [ ] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg)
 
 Output formats
@@ -45,22 +45,23 @@ Output formats
 - [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
 - [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
 - [x] `upsize` (bool): enable image upsizing [default: ENV]
-- [ ] `extend` (string): extend image to fit aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
+- [x] `extend` (string): extend image to fit aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
 - [ ] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
-- [ ] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
+  - [x] `contain`: preserve the image aspect ratio inside the requested width and height
+- [x] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
 - [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
 - [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
-- [ ] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
+- [x] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
 - [x] `cache` (any): cache buster (timestamp or random string)
-- [ ] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
-- [ ] `original` (bool): return original image instead of processed one [default: false]
-- [ ] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
+- [x] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
+- [x] `original` (bool): return original image instead of processed one [default: false]
+- [x] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
 - [ ] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg, ...) [default: auto]
 - [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72)
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64
-- [ ] `meta` (string): metadata to keep in output image (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: ENV]
-- [ ] `fallback` (string): fallback image URL when original image is not found or processing fails
+- [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `OUTPUT_METADATA`]
+- [x] `fallback` (string): fallback image URL when original image is not found or processing fails
 - [ ] `limit`
   - [ ] `dimension` (int): maximum output image dimensions in pixels (default: ENV)
   - [ ] `size` (int): maximum output image size in bytes (default: ENV)
@@ -75,18 +76,18 @@ Output formats
   - [ ] `g`: gravity of the crop area [default: ENV]
   - [ ] `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported [default: 0]
   - [ ] `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported [default: 0]
-- [ ] `filter`: apply filters to image (eg. `filter=brightness:0.5|contrast:0.5`)
+- [x] `filter`: apply filters to image (eg. `filter=brightness:0.5|contrast:0.5`)
   - [x] `brightness` (float): adjust image brightness [default: 1, suggested effective range: 0..5]
   - [x] `contrast` (float): adjust image contrast [default: 1, suggested effective range: 0..5]
   - [x] `saturate` (float): adjust image saturation [default: 1, suggested effective range: 0..5]
-  - [x] `hue` (float): adjust image hue [default: 0]
-  - [ ] `bw` (bool): convert image to grayscale [default: false]
-  - [ ] `palette` (string): convert image to color palette (max. 2 colors)
-  - [ ] `invert` (bool): invert image colors [default: false]
-  - [ ] `sepia` (bool): apply sepia filter [default: false]
-  - [ ] `blur` (float): apply Gaussian blur [default: 0]
-  - [ ] `sharpen` (float): apply sharpening [default: 0]
-  - [ ] `pixelate` (float): apply pixelation [default: 0]
+  - [x] `hue` (float): adjust image hue [default: 0, suggested effective range: 0..360]
+  - [x] `grayscale` (bool): convert image to grayscale [default: false, range: 0..1]
+  - [x] `sepia` (bool): apply sepia filter [default: false, range: 0..1]
+  - [x] `invert` (bool): invert image colors [default: false, range: 0..1]
+  - [x] `blur` (float): apply Gaussian blur [default: 0, range: 0..n]
+  - [x] `sharpen` (float): apply sharpening [default: 0, range: 0..10]
+  - [x] `pixelate` (float): apply pixelation [default: 1, range: 1..n]
+  - [x] `palette` (string): convert image to color palette (max. 2 colors - monochrome or duotone)
 - [ ] `watermark` (string): apply watermark to image, in format `watermark=image:watermark.png|opacity:50|padding:10`
   - [ ] `false` (bool): disable watermarking [default: ENV]
   - [ ] `anchor` (string): watermark anchor position (center, repeat, top, right, bottom, left, top-left, top-right, bottom-left, bottom-right) [default: ENV]

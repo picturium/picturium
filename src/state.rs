@@ -4,7 +4,7 @@ use tracing::error;
 use crate::config::SharedConfig;
 use crate::multithreading::MultiThreading;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppState {
     pub config: SharedConfig,
     pub multithreading: MultiThreading,

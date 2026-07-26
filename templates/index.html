@@ -23,12 +23,31 @@
             text-align: center;
             padding: 2rem;
         }
-        img {
+        .frame {
+            position: relative;
+            display: inline-block;
+            line-height: 0;
+            vertical-align: middle;
             max-width: 90%;
-            max-height: 70vh;
-            height: auto;
             border-radius: 12px;
+            overflow: hidden;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .frame img {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            width: auto;
+            height: auto;
+        }
+        .fx {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        #flicker {
+            width: 100%;
+            height: 100%;
         }
         h1 {
             color: white;
@@ -40,7 +59,101 @@
 </head>
 <body>
     <div class="container">
-        <img src="/public/picturium.webp" alt="Picturium">
+        <div class="frame">
+            <img id="logo" src="/public/picturium.webp" alt="Picturium" style="position: relative; top: 5px; left: 5px;">
+            <canvas id="flicker" class="fx" aria-hidden="true"></canvas>
+        </div>
     </div>
+    <script>
+        (function () {
+            const PX_W = 6.43;
+            const PX_H = 12.5;
+            const TINT = '9, 9, 11';
+
+            const img = document.getElementById('logo');
+            const canvas = document.getElementById('flicker');
+            const ctx = canvas.getContext('2d');
+
+            let cols = 0, rows = 0, dpr = 1;
+            let f1, p1, f2, p2, amp;
+            let rafId = null;
+
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            function seedCells(count) {
+                f1 = new Float32Array(count);
+                p1 = new Float32Array(count);
+                f2 = new Float32Array(count);
+                p2 = new Float32Array(count);
+                amp = new Float32Array(count);
+                for (let i = 0; i < count; i++) {
+                    f1[i] = 0.5 + Math.random() * 2.0;
+                    p1[i] = Math.random() * Math.PI * 2;
+                    f2[i] = 0.3 + Math.random();
+                    p2[i] = Math.random() * Math.PI * 2;
+                    amp[i] = 0.15 + Math.random() * 0.40;
+                }
+            }
+
+            function layout() {
+                const w = img.clientWidth;
+                const h = img.clientHeight;
+                if (!w || !h) return;
+
+                dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = Math.round(w * dpr);
+                canvas.height = Math.round(h * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                cols = Math.ceil(w / PX_W);
+                rows = Math.ceil(h / PX_H);
+                seedCells(cols * rows);
+
+                ctx.clearRect(0, 0, w, h);
+            }
+
+            function cellOpacity(i, t) {
+                const s = Math.sin(t * f1[i] + p1[i]) + 0.6 * Math.sin(t * f2[i] + p2[i]);
+                let n = (s + 1.6) / 3.2;
+                n = n * n * n;
+                return n * amp[i];
+            }
+
+            function frame(now) {
+                const t = now / 1000;
+                const w = canvas.width / dpr;
+                const h = canvas.height / dpr;
+
+                ctx.clearRect(0, 0, w, h);
+
+                let i = 0;
+                for (let r = 0; r < rows; r++) {
+                    const y = r * PX_H;
+                    for (let c = 0; c < cols; c++, i++) {
+                        const o = cellOpacity(i, t);
+                        if (o <= 0.004) continue;
+                        ctx.fillStyle = `rgba(${TINT}, ${o.toFixed(3)})`;
+                        ctx.fillRect(c * PX_W, y, PX_W + 0.5, PX_H + 0.5);
+                    }
+                }
+
+                rafId = requestAnimationFrame(frame);
+            }
+
+            function start() {
+                layout();
+                if (reduceMotion) return;
+                cancelAnimationFrame(rafId);
+                rafId = requestAnimationFrame(frame);
+            }
+
+            if (img.complete && img.naturalWidth) {
+                start();
+            } else {
+                img.addEventListener('load', start, { once: true });
+            }
+            window.addEventListener('resize', layout);
+        })();
+    </script>
 </body>
 </html>

@@ -5,7 +5,7 @@ use std::thread::available_parallelism;
 use tokio::sync::Semaphore;
 use crate::config::SharedConfig;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MultiThreading {
     pub total_workers: usize,
     available_workers: Arc<AtomicUsize>,

@@ -7,7 +7,10 @@ edition = "2024"
 axum = "0.8"
 dotenvy = { version = "0.15.7", features = ["cli"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
 tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
+httpdate = "1.0"
+http-range-header = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -19,3 +22,4 @@ scopeguard = "1.2.0"
 hmac = "0.13.0"
 sha2 = "0.11.0"
 hex = "0.4.3"
+fs4 = "1.1.0"

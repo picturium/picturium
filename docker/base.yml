@@ -1,4 +1,5 @@
-FROM ubuntu:24.04 AS build
+#FROM ubuntu:26.04
+FROM ubuntu:26.04 AS build
 
 WORKDIR /root
 
@@ -19,7 +20,7 @@ RUN apt update -y && \
     tar && \
     apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old && \
+RUN mv /usr/lib/python3.14/EXTERNALLY-MANAGED /usr/lib/python3.14/EXTERNALLY-MANAGED.old && \
     pip3 install meson
 
 # Install libvips libraries
@@ -49,29 +50,29 @@ RUN apt update -y && \
     libpoppler-glib-dev \
     libcgif-dev \
     libraw-dev \
-    libmagickcore-6.q16-dev git && \
+    libmagickcore-7.q16-dev \
+    libgdk-pixbuf-xlib-2.0-dev \
+    ghostscript \
+    libcdr-0.1-1 \
+    git && \
     apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
   
-# Install Rust
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/usr/lib/libreoffice/program:/root/.cargo/bin:${PATH}"
-RUN cargo install cargo-c
-
-RUN apt update -y && apt install -y libgdk-pixbuf2.0-dev
+ENV PATH="/usr/lib/libreoffice/program:${PATH}"
 
 # Install libvips
 RUN cd /root && \
-    wget https://github.com/libvips/libvips/releases/download/v8.18.2/vips-8.18.2.tar.xz && \
-    tar xf vips-8.18.2.tar.xz && \
-    cd /root/vips-8.18.2 && \
+    wget https://github.com/libvips/libvips/releases/download/v8.18.4/vips-8.18.4.tar.xz && \
+    tar xf vips-8.18.4.tar.xz && \
+    cd /root/vips-8.18.4 && \
     meson setup build --libdir=lib --buildtype=release -Dintrospection=disabled && \
-    cd /root/vips-8.18.2/build && \
+    cd /root/vips-8.18.4/build && \
     meson compile && \
     meson install && \
     ldconfig && \
-    cd /root && rm vips-8.18.2.tar.xz && rm -rf vips-8.18.2
+    cd /root && rm vips-8.18.4.tar.xz && rm -rf vips-8.18.4
 
 RUN mkdir -p /lib/x86_64-linux-gnu && mkdir -p /lib/aarch64-linux-gnu
+RUN mkdir -p /usr/lib/x86_64-linux-gnu/glib-2.0 && mkdir -p /usr/lib/aarch64-linux-gnu/glib-2.0
 
 # Install libreoffice
 RUN apt update -y && \
@@ -81,13 +82,18 @@ RUN apt update -y && \
     apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 COPY --from=build /usr/local/lib /usr/local/lib
 COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
+COPY --from=build /usr/bin/gs /usr/bin/gs
+COPY --from=build /usr/local/include/vips /usr/local/include/vips
 COPY --from=build /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
 COPY --from=build /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=build /usr/lib/gcc /usr/lib/gcc
 COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
+COPY --from=build /usr/lib/x86_64-linux-gnu/glib-2.0 /usr/lib/x86_64-linux-gnu/glib-2.0
+COPY --from=build /usr/lib/aarch64-linux-gnu/glib-2.0 /usr/lib/aarch64-linux-gnu/glib-2.0
 COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
 COPY --from=build /usr/share/liblangtag /usr/share/liblangtag
 COPY --from=build /usr/share/color /usr/share/color

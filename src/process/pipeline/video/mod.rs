@@ -1,6 +1,6 @@
 use crate::enums::input::VideoInputFormat;
 use crate::process::pipeline::request::PipelineRequest;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 /// Run the video pre-pipeline.
 ///

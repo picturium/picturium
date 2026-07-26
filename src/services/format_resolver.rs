@@ -40,3 +40,10 @@ pub fn resolve_intermediate_format(source: &Source) -> Option<VipsInputFormat> {
         _ => None,
     }
 }
+
+pub fn resolve_input_format(source: &Source, intermediate_format: Option<VipsInputFormat>) -> VipsInputFormat {
+    match source.format {
+        InputFormat::Vips(format) => format,
+        _ => intermediate_format.unwrap_or(VipsInputFormat::Jpeg),
+    }
+}

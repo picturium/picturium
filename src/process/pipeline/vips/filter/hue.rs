@@ -31,7 +31,8 @@ pub fn apply(image: VipsImage, degrees: f64) -> Result<VipsImage> {
     let matrix = VipsImage::new_matrix(bands, bands, &matrix)
         .map_err(|e| anyhow::anyhow!("Failed to build hue matrix: {:?}", e))?;
 
-    image.recomb(&matrix)
+    image
+        .recomb(matrix)
         .map_err(|e| anyhow::anyhow!("Failed to apply hue: {:?}", e))
 }
 
@@ -43,9 +44,15 @@ fn colour_matrix(degrees: f64) -> Vec<f64> {
     let (sin, cos) = degrees.to_radians().sin_cos();
 
     vec![
-        0.213 + 0.787 * cos - 0.213 * sin, 0.715 - 0.715 * cos - 0.715 * sin, 0.072 - 0.072 * cos + 0.928 * sin,
-        0.213 - 0.213 * cos + 0.143 * sin, 0.715 + 0.285 * cos + 0.140 * sin, 0.072 - 0.072 * cos - 0.283 * sin,
-        0.213 - 0.213 * cos - 0.787 * sin, 0.715 - 0.715 * cos + 0.715 * sin, 0.072 + 0.928 * cos + 0.072 * sin,
+        0.213 + 0.787 * cos - 0.213 * sin,
+        0.715 - 0.715 * cos - 0.715 * sin,
+        0.072 - 0.072 * cos + 0.928 * sin,
+        0.213 - 0.213 * cos + 0.143 * sin,
+        0.715 + 0.285 * cos + 0.140 * sin,
+        0.072 - 0.072 * cos - 0.283 * sin,
+        0.213 - 0.213 * cos - 0.787 * sin,
+        0.715 - 0.715 * cos + 0.715 * sin,
+        0.072 + 0.928 * cos + 0.072 * sin,
     ]
 }
 
@@ -88,7 +95,10 @@ mod tests {
 
             for row in 0..3 {
                 let sum: f64 = matrix[row * 3..row * 3 + 3].iter().sum();
-                assert!(approx(sum, 1.0), "row {row} sum {sum} for {degrees} degrees");
+                assert!(
+                    approx(sum, 1.0),
+                    "row {row} sum {sum} for {degrees} degrees"
+                );
             }
         }
     }
@@ -99,7 +109,12 @@ mod tests {
         let identity = colour_matrix(0.0);
 
         for i in 0..9 {
-            assert!(approx(rotated[i], identity[i]), "cell {i}: {} vs {}", rotated[i], identity[i]);
+            assert!(
+                approx(rotated[i], identity[i]),
+                "cell {i}: {} vs {}",
+                rotated[i],
+                identity[i]
+            );
         }
     }
 

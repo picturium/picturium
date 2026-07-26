@@ -1,38 +1,56 @@
 use crate::enums::dpi::Dpi;
 use crate::process::pipeline::request::PipelineRequest;
+use crate::process::pipeline::vips::background::resolve_background;
 use crate::services::size::calculate_processing_size;
 use anyhow::{Result, anyhow};
-use picturium_libvips::{FromSvgOptions, VipsAccess, VipsFailOn, VipsImage};
+use picturium_libvips::{FromPdfOptions, VipsAccess, VipsImage};
 
 pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
-    VipsImage::new_from_svg(source_path, Some(get_svg_options(request, source_path)?))
+    VipsImage::new_from_pdf(source_path, Some(get_pdf_options(request, source_path)?))
         .map_err(|e| anyhow!(e))
 }
 
-fn get_svg_options(request: &PipelineRequest, source_path: &str) -> Result<FromSvgOptions> {
+fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromPdfOptions> {
     let (dpi, scale) = resolve_sizing(request, source_path)?;
+    let empty_vec = vec![];
 
-    Ok(FromSvgOptions {
+    let min_page = request
+        .parameters
+        .thumbnail
+        .pages
+        .as_ref()
+        .unwrap_or(&empty_vec)
+        .iter()
+        .min()
+        .unwrap_or(&1);
+
+    let max_page = request
+        .parameters
+        .thumbnail
+        .pages
+        .as_ref()
+        .unwrap_or(&empty_vec)
+        .iter()
+        .max()
+        .unwrap_or(&1);
+
+    let page_count = max_page - min_page + 1;
+
+    Ok(FromPdfOptions {
+        page: (*min_page as i32) - 1,
+        page_count: page_count as i32,
         dpi,
         scale,
-        unlimited: request.state.config.svg.unlimited,
-        stylesheet: request
-            .parameters
-            .style
-            .as_ref()
-            .unwrap_or(&"".to_string())
-            .to_string(),
-        high_bitdepth: false,
-        memory: false,
+        background: resolve_background(request.parameters.background).to_vec(),
         access: VipsAccess::Sequential,
-        fail_on: VipsFailOn::Error,
         revalidate: true,
+        ..Default::default()
     })
 }
 
 fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64)> {
     let dpi = match request.parameters.dpi {
-        Dpi::Auto => request.state.config.svg.load_dpi as f64,
+        Dpi::Auto => request.state.config.pdf.load_dpi as f64,
         Dpi::Value(value) => value as f64,
     };
 
@@ -40,9 +58,9 @@ fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, 
 }
 
 fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Result<f64> {
-    let image = VipsImage::new_from_svg(
+    let image = VipsImage::new_from_pdf(
         source_path,
-        Some(FromSvgOptions {
+        Some(FromPdfOptions {
             dpi,
             revalidate: true,
             ..Default::default()

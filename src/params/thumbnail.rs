@@ -6,7 +6,7 @@ use serde::de::Visitor;
 #[derive(Debug, Clone, Default)]
 pub struct Thumbnail {
     pub pages: Option<Vec<u32>>,
-    pub frames: Option<u8>,
+    pub frames: Option<i16>,
     pub timing: Option<u16>,
 }
 
@@ -45,7 +45,7 @@ impl FromStr for Thumbnail {
                     );
                 },
                 "frames" => thumb.frames = Some(
-                    value.parse::<u8>().map_err(|_| ThumbnailParseError(format!("Invalid frames value: '{value}'")))?,
+                    value.parse::<i16>().map_err(|_| ThumbnailParseError(format!("Invalid frames value: '{value}'")))?,
                 ),
                 "timing" => {
                     let timing = value.parse::<u16>().map_err(|_| ThumbnailParseError(format!("Invalid timing value: '{value}'")))?;

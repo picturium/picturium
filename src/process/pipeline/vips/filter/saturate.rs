@@ -34,7 +34,8 @@ pub fn apply(image: VipsImage, factor: f64) -> Result<VipsImage> {
     let matrix = VipsImage::new_matrix(bands, bands, &matrix)
         .map_err(|e| anyhow::anyhow!("Failed to build saturate matrix: {:?}", e))?;
 
-    image.recomb(&matrix)
+    image
+        .recomb(matrix)
         .map_err(|e| anyhow::anyhow!("Failed to apply saturate: {:?}", e))
 }
 

@@ -63,16 +63,13 @@ impl Parameters {
         let dpr = params.dpr.unwrap_or(DEFAULT_DPR);
         let scale = params.scale.unwrap_or(DEFAULT_SCALE);
 
-        let modifier = scale * dpr;
-        let (width, height) = Self::apply_modifier_to_size(&params.width, &params.height, modifier);
-
         let padding = params.padding.map(|p| p.apply_dpr(dpr));
         let watermark = params.watermark.unwrap_or_default().apply_dpr(dpr);
 
         Self {
             force: params.force.unwrap_or_default(),
-            width,
-            height,
+            width: params.width,
+            height: params.height,
             aspect_ratio: params.aspect_ratio.unwrap_or_default(),
             gravity: params.gravity.unwrap_or(config.image.gravity),
             dpr,
@@ -99,11 +96,5 @@ impl Parameters {
             thumbnail: params.thumbnail.unwrap_or_default(),
             watermark,
         }
-    }
-
-    fn apply_modifier_to_size(width: &Option<u16>, height: &Option<u16>, modifier: f32) -> (Option<u16>, Option<u16>) {
-        let width = width.map(|w| (w as f32 * modifier) as u16);
-        let height = height.map(|h| (h as f32 * modifier) as u16);
-        (width, height)
     }
 }

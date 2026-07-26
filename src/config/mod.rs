@@ -5,6 +5,7 @@ mod vips;
 mod data;
 mod cache;
 mod svg;
+mod pdf;
 mod image;
 mod watermark;
 mod output;
@@ -16,6 +17,7 @@ use crate::config::data::DataConfig;
 use crate::config::image::ImageConfig;
 use crate::config::office::OfficeConfig;
 use crate::config::output::OutputConfig;
+use crate::config::pdf::PdfConfig;
 use crate::config::security::SecurityConfig;
 use crate::config::server::ServerConfig;
 use crate::config::svg::SvgConfig;
@@ -49,6 +51,7 @@ pub struct Config {
     pub data: DataConfig,
     pub cache: CacheConfig,
     pub svg: SvgConfig,
+    pub pdf: PdfConfig,
     pub image: ImageConfig,
     pub watermark: WatermarkConfig,
     pub output: OutputConfig,
@@ -65,6 +68,7 @@ impl ConfigFromEnv for Config {
             data: DataConfig::from_env()?,
             cache: CacheConfig::from_env()?,
             svg: SvgConfig::from_env()?,
+            pdf: PdfConfig::from_env()?,
             image: ImageConfig::from_env()?,
             watermark: WatermarkConfig::from_env()?,
             output: OutputConfig::from_env()?,

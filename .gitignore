@@ -2,4 +2,5 @@
 /target
 /data
 /cache
-/.vibe/config.toml
+/.idea
+/.zcode

@@ -1,90 +1,54 @@
+mod blur;
 mod hue;
+mod invert;
+mod linear;
+mod palette;
+mod pixelate;
 mod saturate;
+mod sepia;
+mod sharpen;
 
 use crate::enums::filter::FilterValue;
 use crate::process::pipeline::request::PipelineRequest;
 use anyhow::Result;
-use picturium_libvips::{VipsFilters, VipsImage};
+use picturium_libvips::{VipsBandFormat, VipsImage};
 
-pub fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage> {
-    let mut filter_queue = FilterQueue::new(image.get_bit_depth());
+pub fn process(request: &PipelineRequest, mut image: VipsImage) -> Result<VipsImage> {
+    let bit_depth = image.get_bit_depth();
+    let divider = (1 << bit_depth) as f64;
+    let has_clamp = matches!(bit_depth, 8 | 16);
 
-    request.parameters.filter.0.iter()
-        .try_for_each(|filter| match filter {
-            FilterValue::Brightness(value) => filter_queue.apply_brightness(*value),
-            FilterValue::Contrast(value) => filter_queue.apply_contrast(*value),
-            FilterValue::Saturate(value) => filter_queue.apply_saturate(*value),
-            FilterValue::Hue(value) => filter_queue.apply_hue(*value as f64),
-            _ => Ok(()),
-        })?;
+    let filters = &request.parameters.filter.0;
+    let last_index = filters.len().saturating_sub(1);
 
-    execute_filter_queue(&filter_queue, image)
-}
+    for (index, filter) in filters.iter().enumerate() {
+        image = match filter {
+            FilterValue::Brightness(value) => linear::apply(image, *value, 0.0)?,
+            FilterValue::Contrast(value) => {
+                linear::apply(image, *value, (0.5 - value * 0.5) * divider)?
+            }
+            FilterValue::Saturate(value) => saturate::apply(image, *value)?,
+            FilterValue::Hue(value) => hue::apply(image, *value as f64)?,
+            FilterValue::Grayscale(value) => saturate::apply(image, (value * -1.0) + 1.0)?,
+            FilterValue::Sepia(value) => sepia::apply(image, (value * -1.0) + 1.0)?,
+            FilterValue::Invert(value) => invert::apply(image, *value)?,
+            FilterValue::Blur(value) => blur::apply(image, *value)?,
+            FilterValue::Sharpen(value) => sharpen::apply(image, *value)?,
+            FilterValue::Pixelate(value) => pixelate::apply(request, image, *value)?,
+            FilterValue::Palette(value) => palette::apply(image, &value.1, value.0, bit_depth)?,
+        };
 
-/// Filters are collapsed per-type and applied in a fixed order (linear → saturate → hue),
-/// which diverges from strict CSS declaration-order chaining: brightness/contrast multiply
-/// into one `linear`, saturates multiply together, and hue angles sum. Order matters only
-/// when different filter types are combined in one request.
-#[derive(Debug)]
-struct FilterQueue {
-    linear: Option<(f64, f64)>,
-    saturate: Option<f64>,
-    hue: Option<f64>,
-    divider: f64,
-}
+        if has_clamp && index < last_index {
+            let format = match bit_depth {
+                8 => VipsBandFormat::UChar,
+                16 => VipsBandFormat::UShort,
+                _ => unreachable!(),
+            };
 
-impl FilterQueue {
-    fn new(bit_depth: i32) -> Self {
-        Self {
-            linear: None,
-            saturate: None,
-            hue: None,
-            divider: (1 << bit_depth) as f64,
+            image = image.cast(format).map_err(|e| {
+                anyhow::anyhow!("Failed to clamp intermediate filter result: {:?}", e)
+            })?;
         }
-    }
-
-    fn linear_mut(&mut self) -> &mut (f64, f64) {
-        self.linear.get_or_insert((1.0, 0.0))
-    }
-
-    pub fn apply_brightness(&mut self, value: f64) -> Result<()> {
-        self.linear_mut().0 *= value;
-        Ok(())
-    }
-
-    pub fn apply_contrast(&mut self, value: f64) -> Result<()> {
-        let divider = self.divider;
-        let linear = self.linear_mut();
-
-        linear.0 *= value;
-        linear.1 = linear.1 * value + (0.5 - value * 0.5) * divider;
-
-        Ok(())
-    }
-
-    pub fn apply_saturate(&mut self, value: f64) -> Result<()> {
-        *self.saturate.get_or_insert(1.0) *= value;
-        Ok(())
-    }
-
-    pub fn apply_hue(&mut self, degrees: f64) -> Result<()> {
-        *self.hue.get_or_insert(0.0) += degrees;
-        Ok(())
-    }
-}
-
-fn execute_filter_queue(queue: &FilterQueue, mut image: VipsImage) -> Result<VipsImage> {
-    if let Some((scale, offset)) = queue.linear {
-        image = image.linear(scale, offset)
-            .map_err(|e| anyhow::anyhow!("Failed to apply linear filter: {:?}", e))?;
-    }
-
-    if let Some(factor) = queue.saturate {
-        image = saturate::apply(image, factor)?;
-    }
-
-    if let Some(degrees) = queue.hue {
-        image = hue::apply(image, degrees)?;
     }
 
     Ok(image)
