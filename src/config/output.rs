@@ -1,5 +1,8 @@
 use std::str::FromStr;
-use crate::config::{parse_env, ConfigFromEnv};
+use crate::config::encoder::EncoderConfig;
+use crate::config::quality::QualityConfig;
+use crate::config::{parse_env, parse_env_or, ConfigFromEnv};
+use crate::params::byte_size::ByteSize;
 use crate::enums::output_effort::OutputEffort;
 use crate::enums::output_metadata::OutputMetadata;
 use crate::enums::output_quality::OutputQuality;
@@ -17,6 +20,9 @@ const DEFAULT_OUTPUT_CMYK: &str = "false";
 const DEFAULT_OUTPUT_MAX_WIDTH: &str = "5000";
 const DEFAULT_OUTPUT_MAX_HEIGHT: &str = "5000";
 const DEFAULT_OUTPUT_MAX_SIZE: &str = "0";
+const DEFAULT_OUTPUT_MAX_SIZE_THRESHOLD: &str = "10";
+const DEFAULT_OUTPUT_MAX_SIZE_ATTEMPTS: &str = "3";
+const DEFAULT_OUTPUT_MAX_SIZE_MIN_QUALITY: u8 = 10;
 
 #[derive(Debug, Clone)]
 pub struct OutputConfig {
@@ -32,6 +38,11 @@ pub struct OutputConfig {
     pub max_width: u32,
     pub max_height: u32,
     pub max_size: usize,
+    pub max_size_threshold: u8,
+    pub max_size_attempts: u8,
+    pub max_size_min_quality: u8,
+    pub quality_curves: QualityConfig,
+    pub encoder: EncoderConfig,
 }
 
 impl ConfigFromEnv for OutputConfig {
@@ -55,7 +66,20 @@ impl ConfigFromEnv for OutputConfig {
             cmyk: parse_env("OUTPUT_CMYK", DEFAULT_OUTPUT_CMYK)?,
             max_width: parse_env("OUTPUT_MAX_WIDTH", DEFAULT_OUTPUT_MAX_WIDTH)?,
             max_height: parse_env("OUTPUT_MAX_HEIGHT", DEFAULT_OUTPUT_MAX_HEIGHT)?,
-            max_size: parse_env("OUTPUT_MAX_SIZE", DEFAULT_OUTPUT_MAX_SIZE)?,
+            max_size: parse_env::<ByteSize>("OUTPUT_MAX_SIZE", DEFAULT_OUTPUT_MAX_SIZE)?.0,
+            max_size_threshold: parse_env("OUTPUT_MAX_SIZE_THRESHOLD", DEFAULT_OUTPUT_MAX_SIZE_THRESHOLD)?,
+            max_size_attempts: parse_env("OUTPUT_MAX_SIZE_ATTEMPTS", DEFAULT_OUTPUT_MAX_SIZE_ATTEMPTS)?,
+            max_size_min_quality: {
+                let quality = parse_env_or("OUTPUT_MAX_SIZE_MIN_QUALITY", DEFAULT_OUTPUT_MAX_SIZE_MIN_QUALITY)?;
+
+                if !(1..=100).contains(&quality) {
+                    anyhow::bail!("OUTPUT_MAX_SIZE_MIN_QUALITY must be between 1 and 100, got {quality}");
+                }
+
+                quality
+            },
+            quality_curves: QualityConfig::from_env()?,
+            encoder: EncoderConfig::from_env()?,
         })
     }
 }

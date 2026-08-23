@@ -4,11 +4,13 @@ mod cors;
 mod vips;
 mod data;
 mod cache;
+pub mod encoder;
+pub mod quality;
 mod svg;
 mod pdf;
 mod image;
 mod watermark;
-mod output;
+pub mod output;
 mod office;
 
 use crate::config::cache::CacheConfig;
@@ -36,6 +38,20 @@ where
         .trim()
         .parse()
         .with_context(|| format!("Failed to parse {key}"))
+}
+
+/// Similar to [`parse_env`], but falls back to a typed default instead of a string
+pub(self) fn parse_env_or<T: FromStr>(key: &str, default: T) -> Result<T>
+where
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    match std::env::var(key) {
+        Ok(value) => value
+            .trim()
+            .parse()
+            .with_context(|| format!("Failed to parse {key}")),
+        Err(_) => Ok(default),
+    }
 }
 
 pub trait ConfigFromEnv {

@@ -4,14 +4,15 @@ use picturium_libvips::{GifSaveOptions, VipsBufferSaving, VipsImage, VipsKeep};
 
 pub(crate) fn finish_image(
     request: &PipelineRequest,
-    image: VipsImage,
+    image: &VipsImage,
     keep: VipsKeep,
 ) -> anyhow::Result<Vec<u8>> {
+    let output = &request.state.config.output;
     let background = resolve_background(request.parameters.background);
 
     image
         .save_gif(Some(GifSaveOptions {
-            // effort: 2,
+            effort: output.encoder.gif.effort.get(output.effort),
             // dither: 1.0,
             keep,
             // reuse: true,

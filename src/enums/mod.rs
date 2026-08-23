@@ -1,3 +1,7 @@
+pub mod avif_compression;
+pub mod avif_encoder;
+pub mod chroma_subsample;
+pub mod webp_preset;
 pub mod image_extend;
 pub mod image_fit;
 pub mod image_gravity;

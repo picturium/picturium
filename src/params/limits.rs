@@ -1,3 +1,4 @@
+use crate::params::byte_size::ByteSize;
 use std::fmt;
 use std::str::FromStr;
 use serde::{de, Deserialize, Deserializer};
@@ -35,7 +36,7 @@ impl FromStr for Limits {
             // TODO > Better value parsing with validation
             match key {
                 "dimension" => limits.dimension = Some(value.parse().map_err(|_| LimitsParseError(format!("Invalid dimension value: '{value}'")))?),
-                "size" => limits.size = Some(value.parse().map_err(|_| LimitsParseError(format!("Invalid size value: '{value}'")))?),
+                "size" => limits.size = Some(value.parse::<ByteSize>().map_err(|e| LimitsParseError(e.to_string()))?.0),
                 _ => return Err(LimitsParseError(format!("Unknown limits key: '{key}'"))),
             }
         }
@@ -51,7 +52,7 @@ impl<'de> Deserialize<'de> for Limits {
             type Value = Limits;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "limits parameters in format limit=dimension:1000|size:1000000")
+                write!(f, "limits parameters in format limit=dimension:1000|size:500K")
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {

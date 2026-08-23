@@ -92,7 +92,11 @@ impl Parameters {
             style: params.style,
             metadata: params.metadata.unwrap_or_else(|| config.output.metadata.clone()),
             fallback: params.fallback,
-            limits: params.limits.unwrap_or_default(),
+            limits: {
+                let mut limits = params.limits.unwrap_or_default();
+                limits.size = limits.size.or(Some(config.output.max_size).filter(|size| *size > 0));
+                limits
+            },
             thumbnail: params.thumbnail.unwrap_or_default(),
             watermark,
         }

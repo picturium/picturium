@@ -1,4 +1,5 @@
 pub mod aspect_ratio;
+pub mod byte_size;
 pub mod padding;
 pub mod rotate;
 pub mod background;
@@ -83,6 +84,7 @@ pub struct RequestParams {
     #[serde(default, deserialize_with = "deserialize_metadata", alias = "meta")]
     pub metadata: Option<Metadata>,
     pub fallback: Option<String>,
+    #[serde(alias = "limit")]
     pub limits: Option<Limits>,
     #[serde(alias = "thumb")]
     pub thumbnail: Option<Thumbnail>,

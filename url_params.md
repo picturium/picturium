@@ -64,7 +64,7 @@ Output formats
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
 - [ ] `limit`
   - [ ] `dimension` (int): maximum output image dimensions in pixels (default: ENV)
-  - [ ] `size` (int): maximum output image size in bytes (default: ENV)
+  - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `OUTPUT_MAX_SIZE`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `OUTPUT_MAX_SIZE_THRESHOLD` and `OUTPUT_MAX_SIZE_ATTEMPTS`; not supported for `gif` output, which has no quality setting
 - [ ] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1,4|timing:500`
   - [ ] `p`|`page`|`pages` (int): page of the document to generate thumbnail, [default: 1], or animate between multiple pages `1,2,3`
   - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `p` is used as a starting page

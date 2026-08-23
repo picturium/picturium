@@ -152,6 +152,21 @@ assert_no_exif() {
     fi
 }
 
+assert_max_size() {
+    local image="$1"
+    local limit="$2"
+    local size
+    size="$(stat -c %s "${image}")"
+    echo "  ${image} is ${size} B (limit ${limit} B)"
+    [[ "${size}" -le "${limit}" ]]
+}
+
+assert_min_size() {
+    local image="$1"
+    local floor="$2"
+    [[ "$(stat -c %s "$1")" -ge "${floor}" ]]
+}
+
 request source.png 'w=100&h=100&fit=contain&upsize=true&g=center&bg=ff0000&f=png' "${work_dir}/contain.png"
 assert_dimensions "${work_dir}/contain.png" 100 100
 assert_pixel "${work_dir}/contain.png" 0 0 255 0 0
@@ -197,5 +212,76 @@ request with-exif.jpg 'f=jpeg&meta=none' "${work_dir}/meta-none.jpg"
 assert_no_exif "${work_dir}/meta-none.jpg"
 request with-exif.jpg 'f=jpeg&meta=exif' "${work_dir}/meta-exif.jpg"
 assert_has_exif "${work_dir}/meta-exif.jpg"
+
+# limit=size caps the encoded output by recompressing at a lower quality. The
+# limit is derived from an unlimited encode so it stays reachable for every codec.
+for format in jpeg webp avif jxl png; do
+    base="${work_dir}/limit-base.${format}"
+    request with-exif.jpg "q=maximum&f=${format}" "${base}"
+    limit="$(( $(stat -c %s "${base}") * 3 / 5 ))"
+
+    output="${work_dir}/limit-size.${format}"
+    request with-exif.jpg "q=maximum&f=${format}&limit=size:${limit}" "${output}"
+    assert_max_size "${output}" "${limit}"
+    # A search that collapses to the quality floor still meets the limit, so also
+    # check it did not throw away most of the budget getting there.
+    assert_min_size "${output}" "$(( limit / 2 ))"
+done
+
+# `limits` is the canonical key, `limit` its documented alias.
+request with-exif.jpg 'q=maximum&f=jpeg&limits=size:20000' "${work_dir}/limits-size.jpg"
+assert_max_size "${work_dir}/limits-size.jpg" 20000
+
+# Unit suffixes are binary: 20K == 20480 B.
+request with-exif.jpg 'q=maximum&f=jpeg&limit=size:20K' "${work_dir}/limit-suffix.jpg"
+assert_max_size "${work_dir}/limit-suffix.jpg" 20480
+request with-exif.jpg 'q=maximum&f=jpeg&limit=size:1M' "${work_dir}/limit-suffix-large.jpg"
+assert_max_size "${work_dir}/limit-suffix-large.jpg" 1048576
+
+# A malformed size is a client error, not a 500.
+status="$(curl -so /dev/null -w '%{http_code}' "http://${HOST}:${PORT}/with-exif.jpg?limit=size:20X")"
+echo "  malformed limit returned ${status}"
+[[ "${status}" == "400" ]]
+
+# An unreachable limit must still serve an image rather than fail the request.
+request with-exif.jpg 'f=jpeg&limit=size:200' "${work_dir}/limit-unreachable.jpg"
+assert_dimensions "${work_dir}/limit-unreachable.jpg" 400 400
+
+# GIF has no quality knob, so the limit is ignored instead of looping forever.
+request with-exif.jpg 'f=gif&limit=size:200' "${work_dir}/limit-gif.gif"
+assert_dimensions "${work_dir}/limit-gif.gif" 400 400
+
+# --- encoder configuration ------------------------------------------------
+# Config only reaches the encoders through OutputConfig, so prove it end to end
+# with a second server whose jpeg curve is squashed, and prove a bad value is
+# refused at startup rather than per request.
+
+request with-exif.jpg 'q=maximum&f=jpeg' "${work_dir}/tuned-baseline.jpg"
+
+tuned_dir="$(mktemp -d)"
+OUTPUT_QUALITY_JPEG_MAX=30 OUTPUT_QUALITY_JPEG_MAXIMUM=0 PORT=20146 \
+    cargo run > "${tuned_dir}/server.log" 2>&1 &
+tuned_pid="$!"
+for _ in $(seq 1 120); do
+    curl -fsS "http://${HOST}:20146/health" >/dev/null 2>&1 && break
+    sleep 1
+done
+curl -fsS "http://${HOST}:20146/with-exif.jpg?q=maximum&f=jpeg" -o "${work_dir}/tuned.jpg"
+kill "${tuned_pid}" 2>/dev/null || true
+wait "${tuned_pid}" 2>/dev/null || true
+rm -rf "${tuned_dir}"
+
+baseline_size="$(stat -c %s "${work_dir}/tuned-baseline.jpg")"
+tuned_size="$(stat -c %s "${work_dir}/tuned.jpg")"
+echo "  jpeg curve override: ${baseline_size} B -> ${tuned_size} B"
+[[ "${tuned_size}" -lt "${baseline_size}" ]]
+
+# An out-of-range knob must abort startup, naming the variable.
+if OUTPUT_AVIF_BITDEPTH=7 PORT=20147 cargo run > "${work_dir}/invalid.log" 2>&1; then
+    echo "server started with an invalid OUTPUT_AVIF_BITDEPTH"
+    exit 1
+fi
+grep -q 'OUTPUT_AVIF_BITDEPTH' "${work_dir}/invalid.log"
+echo "  invalid OUTPUT_AVIF_BITDEPTH refused at startup"
 
 echo "bg pipeline checks passed"
