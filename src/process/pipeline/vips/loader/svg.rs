@@ -1,6 +1,6 @@
 use crate::enums::dpi::Dpi;
 use crate::process::pipeline::request::PipelineRequest;
-use crate::services::size::calculate_processing_size;
+use crate::services::size::calculate_load_size;
 use anyhow::{Result, anyhow};
 use picturium_libvips::{FromSvgOptions, VipsAccess, VipsFailOn, VipsImage};
 
@@ -50,7 +50,7 @@ fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Resu
     )
     .map_err(|e| anyhow!(e))?;
 
-    let (process_width, process_height) = calculate_processing_size(request, &image);
+    let (process_width, process_height) = calculate_load_size(request, &image);
 
     let (width, height) = (image.get_width() as u16, image.get_height() as u16);
 

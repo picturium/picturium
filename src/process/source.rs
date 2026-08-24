@@ -10,6 +10,7 @@ pub struct Source {
     pub path: PathBuf,
     pub width: Option<u16>,
     pub height: Option<u16>,
+    pub shrink: f64,
 }
 
 impl Source {
@@ -23,6 +24,7 @@ impl Source {
                 path,
                 width: None,
                 height: None,
+                shrink: 1.0,
             },
             None => {
                 tracing::info!("File not found: {}", path);

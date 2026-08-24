@@ -18,8 +18,8 @@
 [server]
 # Log level (debug [default], info, warn, error)
 log_level = "debug"
-host = "127.0.0.1"
-port = 20045
+host = "0.0.0.0"
+port = 20046
 # Number of worker threads [default: 0 = double the number of CPUs]
 workers = 0
 # Maximum number of requests in queue [default: 100]

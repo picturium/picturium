@@ -14,8 +14,8 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             log_level: "debug".into(),
-            host: "127.0.0.1".into(),
-            port: 20045,
+            host: "0.0.0.0".into(),
+            port: 20046,
             workers: 0,
             queue_size: 100,
         }

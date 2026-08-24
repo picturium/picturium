@@ -49,6 +49,9 @@ Output formats
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
 - [ ] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
   - [x] `contain`: preserve the image aspect ratio inside the requested width and height
+  - [x] `cover`: fill the requested width and height, cropping the overflow (`g` gravity, no `attention` / `entropy` support yet)
+  - [x] `force`: stretch the image to the requested width and height
+  - with `upsize=false` the requested box is shrunk to fit the original, so the output is never larger than the original image
 - [x] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
 - [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
 - [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]

@@ -6,7 +6,7 @@ use picturium_libvips::{ResizeOptions, VipsImage, VipsOperations};
 use tracing::debug;
 
 pub fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage> {
-    let (width, height) = calculate_processing_size(request, &image);
+    let (width, height) = calculate_processing_size(request);
 
     let scale = get_scale(request, &image, width, height);
     let vertical_scale = get_vertical_scale(request, &image, height);

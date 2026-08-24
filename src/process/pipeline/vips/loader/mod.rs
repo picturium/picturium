@@ -9,7 +9,7 @@ use crate::enums::dpi::Dpi;
 use crate::enums::input::{InputFormat, VipsInputFormat};
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::source::Source;
-use crate::services::size::calculate_processing_size;
+use crate::services::size::calculate_load_size;
 use anyhow::{Result, anyhow};
 use picturium_libvips::{FromFileOptions, FromSvgOptions, VipsAccess, VipsImage};
 use std::path::PathBuf;
@@ -29,16 +29,13 @@ pub fn load_file(request: &mut PipelineRequest, source_path: &str) -> Result<Vip
     };
 
     let image = load_vips_file(request, source_path, format)?;
-    println!("Loaded image: {:?}", image);
-
-    request.source.width = Some(image.get_width() as u16);
-    request.source.height = Some(image.get_height() as u16);
+    super::update_source_dimensions(request, &image);
 
     Ok(image)
 }
 
 fn load_vips_file(
-    request: &PipelineRequest,
+    request: &mut PipelineRequest,
     source_path: &str,
     format: VipsInputFormat,
 ) -> Result<VipsImage> {
@@ -84,13 +81,13 @@ fn generate_params(params: Vec<(&str, &str)>) -> String {
 fn get_shrink_factor_float(request: &PipelineRequest, source_path: &str) -> Result<f64> {
     let image = default_load(source_path, None)?;
 
-    let (width, height) = calculate_processing_size(request, &image);
+    let (width, height) = calculate_load_size(request, &image);
     let (width, height) = (width as f64, height as f64);
 
     let original_width = image.get_width() as f64;
     let original_height = image.get_height() as f64;
 
-    let shrink_factor = (original_width / width).min(original_height / height);
+    let shrink_factor = (original_width / width).min(original_height / height).max(1.0);
 
     Ok(shrink_factor)
 }

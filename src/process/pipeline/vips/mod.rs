@@ -10,6 +10,7 @@ mod rotate;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::finish::finish_image;
 use anyhow::Result;
+use picturium_libvips::VipsImage;
 
 /// Run the vips image pipeline on the given source path.
 /// The path may point to the original source file (for natively vips-supported
@@ -23,6 +24,8 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
 
     image = autorotate::process(request, image)?;
     image = rotate::process(request, image)?;
+
+    update_source_dimensions(request, &image);
 
     // TODO > Crop
 
@@ -38,4 +41,13 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
     // TODO > Watermark
 
     finish_image(request, image)
+}
+
+/// Store the dimensions of the source image, calculated back from the loaded
+/// (possibly shrunk on load) image and the shrink factor.
+fn update_source_dimensions(request: &mut PipelineRequest, image: &VipsImage) {
+    let shrink = request.source.shrink;
+
+    request.source.width = Some((image.get_width() as f64 * shrink).round() as u16);
+    request.source.height = Some((image.get_height() as f64 * shrink).round() as u16);
 }

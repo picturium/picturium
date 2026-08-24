@@ -179,10 +179,23 @@ request source.png 'w=100&h=100&fit=contain&upsize=true&g=top-left&bg=ff0000&f=p
 assert_pixel "${work_dir}/gravity.png" 0 0 0 0 255
 assert_pixel "${work_dir}/gravity.png" 99 99 255 0 0
 
+# Without upsizing the requested dimensions are a per-axis limit: a 40x20 source
+# already fits in a 100x100 box, so it is served untouched and unpadded.
 request source.png 'w=100&h=100&fit=contain&upsize=false&bg=ff0000&f=png' "${work_dir}/no-upsize.png"
-assert_dimensions "${work_dir}/no-upsize.png" 100 100
-assert_pixel "${work_dir}/no-upsize.png" 50 50 0 0 255
-assert_pixel "${work_dir}/no-upsize.png" 0 0 255 0 0
+assert_dimensions "${work_dir}/no-upsize.png" 40 20
+assert_pixel "${work_dir}/no-upsize.png" 20 10 0 0 255
+assert_pixel "${work_dir}/no-upsize.png" 0 0 0 0 255
+
+# The height is capped by the source, the width limit still applies and pads.
+request source.png 'w=100&h=10&fit=contain&upsize=false&bg=ff0000&f=png' "${work_dir}/no-upsize-limit.png"
+assert_dimensions "${work_dir}/no-upsize-limit.png" 40 10
+assert_pixel "${work_dir}/no-upsize-limit.png" 20 5 0 0 255
+assert_pixel "${work_dir}/no-upsize-limit.png" 0 0 255 0 0
+
+# jpeg is shrunk while decoding, which must not shrink the canvas with it.
+request with-exif.jpg 'w=400&h=200&fit=contain&upsize=false&bg=ff0000&f=png' "${work_dir}/no-upsize-shrink.png"
+assert_dimensions "${work_dir}/no-upsize-shrink.png" 400 200
+assert_pixel "${work_dir}/no-upsize-shrink.png" 0 0 255 0 0
 
 request source.png 'pad=2,3,4,5&bg=ff0000&f=png' "${work_dir}/padding.png"
 assert_dimensions "${work_dir}/padding.png" 48 26

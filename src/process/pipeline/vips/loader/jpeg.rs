@@ -4,7 +4,7 @@ use crate::process::pipeline::vips::loader::{default_load, generate_params, get_
 use anyhow::{Result, anyhow};
 use picturium_libvips::{FromFileOptions, VipsAccess, VipsImage};
 
-pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
+pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImage> {
     let mut params = vec![];
 
     if request.parameters.auto_rotate == Boolean::True {
@@ -12,6 +12,7 @@ pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
     }
 
     if let Some(shrink) = get_shrink_factor(request, source_path)? {
+        request.source.shrink = shrink.parse().unwrap_or(1.0);
         params.push(("shrink", shrink));
     }
 

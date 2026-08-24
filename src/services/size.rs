@@ -12,17 +12,27 @@ struct SizeGeometry {
     canvas: Option<(u16, u16)>,
 }
 
-pub fn calculate_requested_size(request: &PipelineRequest, original: (u16, u16)) -> (u16, u16) {
-    let geometry = resolve_geometry(
+pub fn calculate_requested_size(request: &PipelineRequest) -> (u16, u16) {
+    let geometry = geometry(request, source_dimensions(request));
+    geometry.canvas.unwrap_or(geometry.content)
+}
+
+fn source_dimensions(request: &PipelineRequest) -> (u16, u16) {
+    (
+        request.source.width.unwrap_or(1).max(1),
+        request.source.height.unwrap_or(1).max(1),
+    )
+}
+
+fn geometry(request: &PipelineRequest, original: (u16, u16)) -> SizeGeometry {
+    resolve_geometry(
         (request.parameters.width, request.parameters.height),
         request.parameters.aspect_ratio,
         request.parameters.scale * request.parameters.dpr,
         request.parameters.upsize.clone(),
         request.parameters.fit,
         original,
-    );
-
-    geometry.canvas.unwrap_or(geometry.content)
+    )
 }
 
 fn resolve_geometry(
@@ -47,17 +57,18 @@ fn resolve_geometry(
     let (width, height) = apply_size_modifier(width, height, modifier);
 
     if has_bounding_box && matches!(fit, ImageFit::Contain | ImageFit::Cover) {
+        let (width, height) = match upsize {
+            Upsize::True => (width, height),
+            Upsize::False => clamp_dimensions(width, height, original_width, original_height),
+        };
+
         let horizontal_scale = width as f64 / original_width as f64;
         let vertical_scale = height as f64 / original_height as f64;
-        let mut content_scale = match fit {
+        let content_scale = match fit {
             ImageFit::Contain => horizontal_scale.min(vertical_scale),
             ImageFit::Cover => horizontal_scale.max(vertical_scale),
             ImageFit::Force => unreachable!("force fit is excluded above"),
         };
-
-        if upsize == Upsize::False {
-            content_scale = content_scale.min(1.0);
-        }
 
         let content = (
             scaled_dimension(original_width, content_scale),
@@ -97,18 +108,17 @@ fn scaled_dimension(dimension: u16, scale: f64) -> u16 {
     ((dimension as f64 * scale).round() as u16).max(1)
 }
 
+fn canvas_size(request: &PipelineRequest) -> Option<(u16, u16)> {
+    let (width, height) = geometry(request, source_dimensions(request)).canvas?;
+    Some(apply_pixelize_filter(request, width, height))
+}
+
 pub(crate) fn calculate_contain_canvas_size(request: &PipelineRequest) -> Option<(i32, i32)> {
     if request.parameters.fit != ImageFit::Contain {
         return None;
     }
 
-    let (width, height) = (request.parameters.width?, request.parameters.height?);
-    let (width, height) = apply_size_modifier(
-        width,
-        height,
-        request.parameters.scale * request.parameters.dpr,
-    );
-
+    let (width, height) = canvas_size(request)?;
     Some((i32::from(width), i32::from(height)))
 }
 
@@ -120,29 +130,27 @@ pub(crate) fn calculate_cover_crop_size(
         return None;
     }
 
-    let (width, height) = (request.parameters.width?, request.parameters.height?);
-    let (width, height) = apply_size_modifier(
-        width,
-        height,
-        request.parameters.scale * request.parameters.dpr,
-    );
-    let (width, height) = apply_pixelize_filter(request, width, height);
-
+    let (width, height) = canvas_size(request)?;
     Some((
         i32::from(width).min(image.get_width()),
         i32::from(height).min(image.get_height()),
     ))
 }
 
-pub fn calculate_processing_size(request: &PipelineRequest, image: &VipsImage) -> (i32, i32) {
-    let geometry = resolve_geometry(
-        (request.parameters.width, request.parameters.height),
-        request.parameters.aspect_ratio,
-        request.parameters.scale * request.parameters.dpr,
-        request.parameters.upsize.clone(),
-        request.parameters.fit,
-        (image.get_width() as u16, image.get_height() as u16),
-    );
+/// Target size for the resize step. Derived from the original source dimensions,
+/// because the loaded image may already be shrunk on load.
+pub fn calculate_processing_size(request: &PipelineRequest) -> (i32, i32) {
+    processing_size(request, source_dimensions(request))
+}
+
+/// Target size relative to a not-yet-shrunk image, used by the loaders to pick
+/// their shrink-on-load / render scale factor.
+pub fn calculate_load_size(request: &PipelineRequest, image: &VipsImage) -> (i32, i32) {
+    processing_size(request, (image.get_width() as u16, image.get_height() as u16))
+}
+
+fn processing_size(request: &PipelineRequest, original: (u16, u16)) -> (i32, i32) {
+    let geometry = geometry(request, original);
     let (width, height) = geometry.content;
     let (width, height) = apply_pixelize_filter(request, width, height);
 
@@ -204,7 +212,7 @@ fn apply_pixelize_filter(request: &PipelineRequest, width: u16, height: u16) -> 
             let new_width = (width as f32 / *size as f32).round() as u16;
             let new_height = (height as f32 / *size as f32).round() as u16;
 
-            (new_width, new_height)
+            (new_width.max(1), new_height.max(1))
         }
         _ => (width, height),
     }
@@ -328,7 +336,45 @@ mod tests {
     }
 
     #[test]
-    fn contain_without_upsizing_keeps_the_requested_canvas() {
+    fn contain_without_upsizing_does_not_pad_an_already_contained_image() {
+        // Both requested dimensions exceed the original, so there is nothing to contain.
+        assert_eq!(
+            resolve_geometry(
+                (Some(600), Some(800)),
+                AspectRatio::Auto,
+                1.0,
+                Upsize::False,
+                ImageFit::Contain,
+                (400, 400),
+            ),
+            SizeGeometry {
+                content: (400, 400),
+                canvas: Some((400, 400)),
+            },
+        );
+    }
+
+    #[test]
+    fn contain_without_upsizing_limits_each_axis_separately() {
+        // The original caps only the height, the 400px width still applies.
+        assert_eq!(
+            resolve_geometry(
+                (Some(400), Some(200)),
+                AspectRatio::Auto,
+                1.0,
+                Upsize::False,
+                ImageFit::Contain,
+                (400, 400),
+            ),
+            SizeGeometry {
+                content: (200, 200),
+                canvas: Some((400, 200)),
+            },
+        );
+    }
+
+    #[test]
+    fn contain_without_upsizing_applies_the_size_modifier_before_limiting() {
         assert_eq!(
             resolve_geometry(
                 (Some(400), Some(300)),
@@ -340,7 +386,7 @@ mod tests {
             ),
             SizeGeometry {
                 content: (100, 50),
-                canvas: Some((800, 600)),
+                canvas: Some((100, 50)),
             },
         );
     }
