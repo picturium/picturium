@@ -2,6 +2,7 @@ use crate::enums::filter::FilterValue;
 use crate::enums::image_fit::ImageFit;
 use crate::enums::upsize::Upsize;
 use crate::params::aspect_ratio::AspectRatio;
+use crate::params::limits::Dimension;
 use crate::process::pipeline::request::PipelineRequest;
 use picturium_libvips::VipsImage;
 use tracing::debug;
@@ -25,14 +26,41 @@ fn source_dimensions(request: &PipelineRequest) -> (u16, u16) {
 }
 
 fn geometry(request: &PipelineRequest, original: (u16, u16)) -> SizeGeometry {
-    resolve_geometry(
+    let geometry = resolve_geometry(
         (request.parameters.width, request.parameters.height),
         request.parameters.aspect_ratio,
         request.parameters.scale * request.parameters.dpr,
         request.parameters.upsize.clone(),
         request.parameters.fit,
         original,
-    )
+    );
+
+    limit_geometry(geometry, request.parameters.limits.dimension.unwrap_or_default())
+}
+
+fn limit_geometry(geometry: SizeGeometry, limit: Dimension) -> SizeGeometry {
+    let (width, height) = geometry.canvas.unwrap_or(geometry.content);
+
+    let axis = |limit: Option<u16>, value: u16| match limit {
+        Some(limit) if value > limit => Some(limit as f64 / value as f64),
+        _ => None,
+    };
+
+    let scale = match (axis(limit.width, width), axis(limit.height, height)) {
+        (Some(horizontal), Some(vertical)) => horizontal.min(vertical),
+        (Some(scale), None) | (None, Some(scale)) => scale,
+        (None, None) => return geometry,
+    };
+
+    SizeGeometry {
+        content: (
+            scaled_dimension(geometry.content.0, scale),
+            scaled_dimension(geometry.content.1, scale),
+        ),
+        canvas: geometry
+            .canvas
+            .map(|(width, height)| (scaled_dimension(width, scale), scaled_dimension(height, scale))),
+    }
 }
 
 fn resolve_geometry(
@@ -407,5 +435,34 @@ mod tests {
                 canvas: None,
             },
         );
+    }
+
+    #[test]
+    fn dimension_limit_scales_content_and_canvas_together() {
+        let geometry = SizeGeometry { content: (800, 400), canvas: Some((400, 400)) };
+
+        assert_eq!(
+            limit_geometry(geometry, Dimension { width: Some(200), height: None }),
+            SizeGeometry { content: (400, 200), canvas: Some((200, 200)) },
+        );
+        assert_eq!(
+            limit_geometry(geometry, Dimension { width: Some(200), height: Some(100) }),
+            SizeGeometry { content: (200, 100), canvas: Some((100, 100)) },
+        );
+        assert_eq!(
+            limit_geometry(geometry, Dimension { width: Some(800), height: Some(800) }),
+            geometry,
+        );
+    }
+
+    #[test]
+    fn dimension_parsing_supports_both_axes() {
+        use std::str::FromStr;
+
+        assert_eq!(Dimension::from_str("100").unwrap(), Dimension { width: Some(100), height: Some(100) });
+        assert_eq!(Dimension::from_str("100x50").unwrap(), Dimension { width: Some(100), height: Some(50) });
+        assert_eq!(Dimension::from_str("x50").unwrap(), Dimension { width: None, height: Some(50) });
+        assert_eq!(Dimension::from_str("100x").unwrap(), Dimension { width: Some(100), height: None });
+        assert!(Dimension::from_str("abc").is_err());
     }
 }

@@ -145,6 +145,8 @@ high_bitdepth = false
 # Enable CMYK output for CMYK images [default: false]
 cmyk = false
 
+# Maximum output image dimensions in pixels [default: 5000] (0 = unlimited).
+# Overridable per request with `limit=dimension:...`.
 max_width = 5000
 max_height = 5000
 # Maximum output image size [default: "0"] (0 = unlimited).

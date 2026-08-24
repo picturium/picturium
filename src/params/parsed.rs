@@ -95,6 +95,12 @@ impl Parameters {
             limits: {
                 let mut limits = params.limits.unwrap_or_default();
                 limits.size = limits.size.or(Some(config.output.max_size).filter(|size| *size > 0));
+
+                let dimension = limits.dimension.get_or_insert_default();
+                let config_limit = |value: u32| u16::try_from(value).ok().filter(|value| *value > 0);
+                dimension.width = dimension.width.or_else(|| config_limit(config.output.max_width));
+                dimension.height = dimension.height.or_else(|| config_limit(config.output.max_height));
+
                 limits
             },
             thumbnail: params.thumbnail.unwrap_or_default(),

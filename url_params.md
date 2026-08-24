@@ -47,7 +47,7 @@ Output formats
 - [x] `upsize` (bool): enable image upsizing [default: ENV]
 - [x] `extend` (string): extend image to fit aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
-- [ ] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
+- [x] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
   - [x] `contain`: preserve the image aspect ratio inside the requested width and height
   - [x] `cover`: fill the requested width and height, cropping the overflow (`g` gravity, no `attention` / `entropy` support yet)
   - [x] `force`: stretch the image to the requested width and height
@@ -65,8 +65,8 @@ Output formats
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64
 - [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
-- [ ] `limit`
-  - [ ] `dimension` (int): maximum output image dimensions in pixels (default: ENV)
+- [x] `limit`
+  - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`; not supported for `gif` output, which has no quality setting
 - [ ] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1,4|timing:500`
   - [ ] `p`|`page`|`pages` (int): page of the document to generate thumbnail, [default: 1], or animate between multiple pages `1,2,3`

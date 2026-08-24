@@ -4,9 +4,45 @@ use std::str::FromStr;
 use serde::{de, Deserialize, Deserializer};
 use serde::de::Visitor;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Dimension {
+    pub width: Option<u16>,
+    pub height: Option<u16>,
+}
+
+impl FromStr for Dimension {
+    type Err = LimitsParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parse = |v: &str| -> Result<Option<u16>, Self::Err> {
+            match v.trim() {
+                "" => Ok(None),
+                v => v
+                    .parse()
+                    .map(Some)
+                    .map_err(|_| LimitsParseError(format!("Invalid dimension value: '{v}'"))),
+            }
+        };
+
+        match s.split_once('x') {
+            Some((width, height)) => Ok(Dimension {
+                width: parse(width)?,
+                height: parse(height)?,
+            }),
+            None => {
+                let value = parse(s)?;
+                Ok(Dimension {
+                    width: value,
+                    height: value,
+                })
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Limits {
-    pub dimension: Option<u32>,
+    pub dimension: Option<Dimension>,
     pub size: Option<usize>,
 }
 
@@ -35,7 +71,7 @@ impl FromStr for Limits {
 
             // TODO > Better value parsing with validation
             match key {
-                "dimension" => limits.dimension = Some(value.parse().map_err(|_| LimitsParseError(format!("Invalid dimension value: '{value}'")))?),
+                "dimension" => limits.dimension = Some(value.parse()?),
                 "size" => limits.size = Some(value.parse::<ByteSize>().map_err(|e| LimitsParseError(e.to_string()))?.0),
                 _ => return Err(LimitsParseError(format!("Unknown limits key: '{key}'"))),
             }
