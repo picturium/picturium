@@ -6,7 +6,6 @@ pub mod image_extend;
 pub mod image_fit;
 pub mod image_gravity;
 pub mod image_resample;
-pub mod output_effort;
 pub mod output_metadata;
 pub mod output_quality;
 pub mod watermark_position;

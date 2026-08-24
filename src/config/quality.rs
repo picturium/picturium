@@ -1,7 +1,8 @@
-use crate::config::{ConfigFromEnv, parse_env_or};
 use anyhow::{Result, bail};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QualityCurve {
     pub min: f64,
     pub max: f64,
@@ -17,33 +18,20 @@ impl QualityCurve {
     const PNG: Self = Self { min: 32.0, max: 99.0, low: -30.0, high: 0.0, maximum: 1.0 };
     const JXL: Self = Self { min: 66.667, max: 85.333, low: -10.0, high: 4.467, maximum: 11.667 };
 
-    fn parse_env(&self, format: &str) -> Result<Self> {
-        let curve = Self {
-            min: parse_env_or(&format!("OUTPUT_QUALITY_{format}_MIN"), self.min)?,
-            max: parse_env_or(&format!("OUTPUT_QUALITY_{format}_MAX"), self.max)?,
-            low: parse_env_or(&format!("OUTPUT_QUALITY_{format}_LOW"), self.low)?,
-            high: parse_env_or(&format!("OUTPUT_QUALITY_{format}_HIGH"), self.high)?,
-            maximum: parse_env_or(&format!("OUTPUT_QUALITY_{format}_MAXIMUM"), self.maximum)?,
-        };
-
-        curve.validate(format)?;
-        Ok(curve)
-    }
-
     fn validate(&self, format: &str) -> Result<()> {
-        for (name, value) in [("MIN", self.min), ("MAX", self.max)] {
+        for (name, value) in [("min", self.min), ("max", self.max)] {
             if !(1.0..=100.0).contains(&value) {
-                bail!("OUTPUT_QUALITY_{format}_{name} must be between 1 and 100, got {value}");
+                bail!("output.quality_curves.{format}.{name} must be between 1 and 100, got {value}");
             }
         }
 
         for (name, value) in [
-            ("LOW", self.low),
-            ("HIGH", self.high),
-            ("MAXIMUM", self.maximum),
+            ("low", self.low),
+            ("high", self.high),
+            ("maximum", self.maximum),
         ] {
             if !(-100.0..=100.0).contains(&value) {
-                bail!("OUTPUT_QUALITY_{format}_{name} must be between -100 and 100, got {value}");
+                bail!("output.quality_curves.{format}.{name} must be between -100 and 100, got {value}");
             }
         }
 
@@ -51,7 +39,8 @@ impl QualityCurve {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct QualityConfig {
     pub jpeg: QualityCurve,
     pub webp: QualityCurve,
@@ -76,29 +65,23 @@ impl Default for QualityConfig {
     }
 }
 
-impl ConfigFromEnv for QualityConfig {
-    fn from_env() -> Result<Self> {
-        let default = Self::default();
+impl QualityConfig {
+    pub(super) fn validate(&self) -> Result<()> {
+        self.jpeg.validate("jpeg")?;
+        self.webp.validate("webp")?;
+        self.avif.validate("avif")?;
+        self.png.validate("png")?;
+        self.jxl.validate("jxl")?;
 
-        let config = Self {
-            jpeg: default.jpeg.parse_env("JPEG")?,
-            webp: default.webp.parse_env("WEBP")?,
-            avif: default.avif.parse_env("AVIF")?,
-            png: default.png.parse_env("PNG")?,
-            jxl: default.jxl.parse_env("JXL")?,
-            min_area: parse_env_or("OUTPUT_QUALITY_MIN_AREA", default.min_area)?,
-            max_area: parse_env_or("OUTPUT_QUALITY_MAX_AREA", default.max_area)?,
-        };
-
-        if !(config.max_area > 0.0) || !(config.min_area > config.max_area) {
+        if !(self.max_area > 0.0) || !(self.min_area > self.max_area) {
             bail!(
-                "OUTPUT_QUALITY_MIN_AREA ({}) must be greater than OUTPUT_QUALITY_MAX_AREA ({}), which must be above 0",
-                config.min_area,
-                config.max_area
+                "output.quality_curves.min_area ({}) must be greater than output.quality_curves.max_area ({}), which must be above 0",
+                self.min_area,
+                self.max_area
             );
         }
 
-        Ok(config)
+        Ok(())
     }
 }
 
@@ -130,16 +113,16 @@ mod tests {
     #[test]
     fn rejects_a_quality_outside_the_shared_domain() {
         let curve = QualityCurve { max: 120.0, ..QualityCurve::JPEG };
-        assert!(curve.validate("JPEG").is_err());
+        assert!(curve.validate("jpeg").is_err());
 
         let curve = QualityCurve { min: 0.0, ..QualityCurve::JPEG };
-        assert!(curve.validate("JPEG").is_err());
+        assert!(curve.validate("jpeg").is_err());
     }
 
     #[test]
     fn rejects_an_out_of_range_modifier() {
         let curve = QualityCurve { low: -400.0, ..QualityCurve::JPEG };
-        assert!(curve.validate("JPEG").is_err());
+        assert!(curve.validate("jpeg").is_err());
     }
 
     #[test]
@@ -147,11 +130,11 @@ mod tests {
         let config = QualityConfig::default();
 
         for (name, curve) in [
-            ("JPEG", config.jpeg),
-            ("WEBP", config.webp),
-            ("AVIF", config.avif),
-            ("PNG", config.png),
-            ("JXL", config.jxl),
+            ("jpeg", config.jpeg),
+            ("webp", config.webp),
+            ("avif", config.avif),
+            ("png", config.png),
+            ("jxl", config.jxl),
         ] {
             assert!(curve.validate(name).is_ok(), "{name} curve rejected");
         }

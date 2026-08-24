@@ -26,7 +26,7 @@ pub(crate) fn finish_image(
             smart_subsample: config.smart_subsample,
             keep,
             alpha_q: quality.max(config.min_alpha_quality),
-            effort: config.effort.get(output.effort),
+            effort: config.effort,
             background: &background,
             ..Default::default()
         }))

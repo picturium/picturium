@@ -1,0 +1,274 @@
+# Picturium configuration.
+#
+# Every key below is optional -- omit it and the built-in default is used, so a
+# partial file is perfectly valid. Copy this file to `config.toml`, or point at
+# another path with the `PICTURIUM_CONFIG` environment variable.
+#
+# Every key can also be overridden by an environment variable: prefix
+# `PICTURIUM__`, and `__` between each level of nesting. For example
+#
+#   PICTURIUM__SERVER__PORT=8080
+#   PICTURIUM__OUTPUT__QUALITY_CURVES__JPEG__MIN=40
+#   PICTURIUM__OUTPUT__ENCODER__AVIF__BITDEPTH=10
+#
+# Unknown keys are rejected at startup rather than silently ignored, so a typo
+# in this file (or in a `PICTURIUM__` variable) will refuse to boot.
+
+
+[server]
+# Log level (debug [default], info, warn, error)
+log_level = "debug"
+host = "127.0.0.1"
+port = 20045
+# Number of worker threads [default: 0 = double the number of CPUs]
+workers = 0
+# Maximum number of requests in queue [default: 100]
+queue_size = 100
+
+
+[security]
+# Enable URL signature verification [default: false]
+signature_enabled = false
+# Secret key used for HMAC-SHA256 verification, for example run
+# `openssl rand -hex 48` in terminal to generate a new random string
+signature_secret = ""
+
+
+[cors]
+# Allowed origins. A list containing "*" is fully permissive [default: ["*"]]
+allowed_origins = ["*"]
+
+
+[vips]
+# Enable libvips memory debugging [default: false]
+debug = false
+# Number of libvips threads [default: 1]
+concurrency = 1
+
+
+[data]
+# Data directory root, skipped from URL [default: data]
+dir = "data"
+# Serve all files in data directory [default: false]
+serve_all = false
+
+
+[cache]
+# Cache directory [default: cache]
+dir = "cache"
+
+[cache.memory]
+enabled = true
+# Maximum number of cache entries [default: 1000]
+capacity = 1000
+# Maximum size of a single cache entry in MB [default: 2]
+entry_limit = 2
+
+[cache.disk]
+enabled = true
+# Maximum _effective_ size of disk cache in MB [default: 1024]
+limit = 1024
+
+
+# By default, libvips blocks loading SVG images larger than 10 MB to increase
+# security.
+[svg]
+# Allow loading SVG images larger than 10 MB [default: false]
+unlimited = false
+load_dpi = 72
+
+
+[pdf]
+load_dpi = 72
+
+
+[office]
+# Timeout for office document conversion in seconds [default: 30]
+conversion_timeout = 30
+
+
+[image]
+# Automatically rotate image based on EXIF orientation tag [default: true]
+auto_rotate = true
+# Enable image upsizing [default: false]
+upsize = false
+# Image extending to fit aspect ratio (bg [default], copy, repeat, mirror)
+extend = "bg"
+# Fit image to requested width and height (cover [default], contain, force)
+fit = "cover"
+# Default gravity (top, right, bottom, left, top-left, top-right, bottom-left,
+# bottom-right, center [default], attention, entropy)
+gravity = "center"
+# Default cropping gravity, same values as above
+crop_gravity = "center"
+# Image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3 [default])
+resample = "lanczos3"
+
+
+[watermark]
+enabled = false
+# Watermark position (center, repeat, top, right, bottom, left, top-left,
+# top-right, bottom-left, bottom-right [default])
+position = "bottom-right"
+opacity = 50
+# Padding in px. CSS-like shorthand: "10", "10,20", "10,20,30" or "10,20,30,40"
+padding = "10,10,10,10"
+# Rotation in degrees [default: 0]
+rotate = 0
+
+[watermark.image]
+path = ""
+scale = 1.0
+
+[watermark.text]
+text = ""
+font_family = "Arial"
+font_size = 12
+font_color = "black"
+
+
+[output]
+# Priority of output formats
+format_priority = ["jxl", "avif", "webp", "jpeg", "png"]
+enable_avif = true
+enable_webp = true
+enable_jxl = true
+
+# Metadata to keep in output images
+# (none, icc, exif, xmp, iptc, other, gainmap, all) [default: ["none"]]
+metadata = ["none"]
+
+# Image quality (auto, low, medium [default], high, maximum, or a number 1-100)
+quality = "medium"
+# Enable high bitdepth output [default: false]
+high_bitdepth = false
+# Enable CMYK output for CMYK images [default: false]
+cmyk = false
+
+max_width = 5000
+max_height = 5000
+# Maximum output image size [default: "0"] (0 = unlimited).
+# Accepts a unit suffix, eg. "500K", "2M" (1K = 1024 B).
+max_size = "0"
+# How close under the size limit is close enough, in percent [default: 10].
+# An image between (limit - threshold%) and limit is accepted without another
+# recompress.
+max_size_threshold = 10
+# Maximum number of recompress attempts to fit the size limit [default: 3]
+max_size_attempts = 3
+# Quality floor for the recompress search, 1-100 [default: 10]
+max_size_min_quality = 10
+
+
+# Quality curves
+#
+# Output quality is interpolated between `max` (small images) and `min` (large
+# ones), then offset by the named `q` level. All five curves use the shared
+# 1-100 quality domain, including JXL, which converts internally as
+# distance = distance_per_quality * (100 - q) -- so JXL's numbers here will not
+# match the JXL documentation's distances.
+#
+# When a curve table is present, give all five keys: the per-format defaults
+# apply to the table as a whole, not key by key.
+[output.quality_curves]
+# Megapixels at or above which quality bottoms out at `min`
+min_area = 8.0
+# Megapixels at or below which quality tops out at `max`
+max_area = 0.25
+
+# `min` and `max` are 1-100; `low`, `high` and `maximum` are offsets applied for
+# `q=low`, `q=high` and `q=maximum` (`q=medium` and `q=auto` apply no offset).
+[output.quality_curves.jpeg]
+min = 32
+max = 80
+low = -12
+high = 10
+maximum = 17
+
+[output.quality_curves.webp]
+min = 40
+max = 78
+low = -10
+high = 8
+maximum = 15
+
+[output.quality_curves.avif]
+min = 38
+max = 67
+low = -10
+high = 10
+maximum = 16
+
+[output.quality_curves.png]
+min = 32
+max = 99
+low = -30
+high = 0
+maximum = 1
+
+# Equivalent to distances 5.0 (min) and 2.2 (max), offsets +1.5 / -0.67 / -1.75
+[output.quality_curves.jxl]
+min = 66.667
+max = 85.333
+low = -10
+high = 4.467
+maximum = 11.667
+
+
+# Per-encoder options
+#
+# `effort` grades encode effort on each codec's own scale. Higher is slower
+# and smaller. JPEG has no effort setting.
+
+[output.encoder.jpeg]
+# Optimise Huffman tables (slower, slightly smaller) [default: true]
+optimize_coding = true
+
+[output.encoder.webp]
+# Megapixels at or below which `preset_small` is used [default: 0.25]
+text_preset_area = 0.25
+# Presets: default, picture, photo, drawing, icon, text
+preset_small = "text"
+preset_large = "default"
+# Alpha is never encoded below this quality, 0-100 [default: 75]
+min_alpha_quality = 75
+smart_subsample = true
+# Range 0-6 [default: 2]
+effort = 2
+
+[output.encoder.png]
+# Quality at which PNG switches to the lossless (non-palette) branch [default: 100]
+lossless_quality = 100
+# Deflate level, 0-9
+compression = 2
+lossless_compression = 3
+# Quantisation dithering, 0-1
+dither = 0.25
+lossless_dither = 0.0
+# Range 1-10 [default: 2]
+effort = 2
+
+[output.encoder.avif]
+# 8, 10 or 12
+bitdepth = 8
+# av1, hevc, avc, jpeg
+compression = "av1"
+# aom, auto, rav1e, svt, x265
+encoder = "aom"
+# Chroma subsampling: auto, on, off
+subsample = "on"
+# Range 0-9 [default: 1]
+effort = 1
+
+[output.encoder.jxl]
+# Decode speed tier, 0-4 (higher decodes faster, compresses worse)
+tier = 0
+lossless = false
+# distance = distance_per_quality * (100 - quality)
+distance_per_quality = 0.15
+# Range 1-9 [default: 3]
+effort = 3
+
+[output.encoder.gif]
+# Range 1-10 [default: 7]
+effort = 7

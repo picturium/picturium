@@ -62,12 +62,15 @@ gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite \
 
 export HOST=127.0.0.1
 export PORT=20145
-export DATA_DIR="${work_dir}/data"
-export CACHE_DIR="${work_dir}/cache"
-export CACHE_MEMORY_ENABLED=false
-export CACHE_DISK_ENABLED=false
-export SIGNATURE_ENABLED=false
-export IMAGE_UPSIZE=false
+export PICTURIUM_CONFIG="${work_dir}/config.toml"
+export PICTURIUM__SERVER__HOST="${HOST}"
+export PICTURIUM__SERVER__PORT="${PORT}"
+export PICTURIUM__DATA__DIR="${work_dir}/data"
+export PICTURIUM__CACHE__DIR="${work_dir}/cache"
+export PICTURIUM__CACHE__MEMORY__ENABLED=false
+export PICTURIUM__CACHE__DISK__ENABLED=false
+export PICTURIUM__SECURITY__SIGNATURE_ENABLED=false
+export PICTURIUM__IMAGE__UPSIZE=false
 export RUSTFLAGS="-C linker-features=-lld"
 
 cargo run > "${work_dir}/server.log" 2>&1 &
@@ -259,7 +262,9 @@ assert_dimensions "${work_dir}/limit-gif.gif" 400 400
 request with-exif.jpg 'q=maximum&f=jpeg' "${work_dir}/tuned-baseline.jpg"
 
 tuned_dir="$(mktemp -d)"
-OUTPUT_QUALITY_JPEG_MAX=30 OUTPUT_QUALITY_JPEG_MAXIMUM=0 PORT=20146 \
+PICTURIUM__OUTPUT__QUALITY_CURVES__JPEG__MAX=30 \
+    PICTURIUM__OUTPUT__QUALITY_CURVES__JPEG__MAXIMUM=0 \
+    PICTURIUM__SERVER__PORT=20146 \
     cargo run > "${tuned_dir}/server.log" 2>&1 &
 tuned_pid="$!"
 for _ in $(seq 1 120); do
@@ -277,11 +282,12 @@ echo "  jpeg curve override: ${baseline_size} B -> ${tuned_size} B"
 [[ "${tuned_size}" -lt "${baseline_size}" ]]
 
 # An out-of-range knob must abort startup, naming the variable.
-if OUTPUT_AVIF_BITDEPTH=7 PORT=20147 cargo run > "${work_dir}/invalid.log" 2>&1; then
-    echo "server started with an invalid OUTPUT_AVIF_BITDEPTH"
+if PICTURIUM__OUTPUT__ENCODER__AVIF__BITDEPTH=7 PICTURIUM__SERVER__PORT=20147 \
+    cargo run > "${work_dir}/invalid.log" 2>&1; then
+    echo "server started with an invalid avif bitdepth"
     exit 1
 fi
-grep -q 'OUTPUT_AVIF_BITDEPTH' "${work_dir}/invalid.log"
-echo "  invalid OUTPUT_AVIF_BITDEPTH refused at startup"
+grep -q 'output.encoder.avif.bitdepth' "${work_dir}/invalid.log"
+echo "  invalid output.encoder.avif.bitdepth refused at startup"
 
 echo "bg pipeline checks passed"

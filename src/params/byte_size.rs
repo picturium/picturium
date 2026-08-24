@@ -1,3 +1,5 @@
+use serde::de::Visitor;
+use serde::{de, Deserializer};
 use std::fmt;
 use std::str::FromStr;
 
@@ -42,6 +44,42 @@ impl FromStr for ByteSize {
 
         Ok(ByteSize((amount * multiplier as f64) as usize))
     }
+}
+
+impl<'de> serde::Deserialize<'de> for ByteSize {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> Visitor<'de> for V {
+            type Value = ByteSize;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "a byte count, plain or with a unit suffix such as 500K or 2M")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                v.parse().map_err(de::Error::custom)
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(ByteSize(v as usize))
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                if v < 0 {
+                    return Err(de::Error::custom(format!("Invalid size value: '{v}'")));
+                }
+
+                Ok(ByteSize(v as usize))
+            }
+        }
+
+        d.deserialize_any(V)
+    }
+}
+
+pub fn deserialize_usize<'de, D: Deserializer<'de>>(d: D) -> Result<usize, D::Error> {
+    use serde::Deserialize;
+    Ok(ByteSize::deserialize(d)?.0)
 }
 
 #[cfg(test)]

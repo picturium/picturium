@@ -1,17 +1,13 @@
-use anyhow::Result;
-use crate::config::{parse_env, ConfigFromEnv};
+use serde::{Deserialize, Serialize};
 
-const DEFAULT_OFFICE_CONVERSION_TIMEOUT: &str = "30";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct OfficeConfig {
     pub conversion_timeout: u64,
 }
 
-impl ConfigFromEnv for OfficeConfig {
-    fn from_env() -> Result<Self> {
-        Ok(Self {
-            conversion_timeout: parse_env("OFFICE_CONVERSION_TIMEOUT", DEFAULT_OFFICE_CONVERSION_TIMEOUT)?,
-        })
+impl Default for OfficeConfig {
+    fn default() -> Self {
+        Self { conversion_timeout: 30 }
     }
 }

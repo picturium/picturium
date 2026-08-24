@@ -59,7 +59,7 @@ pub fn  print_startup_logs(config: &SharedConfig, state: &AppState) {
     info!("  Server: {}", config.server.get_address());
     info!("  Data directory: {}", config.data.dir);
     info!("  Cache directory: {}", config.cache.dir);
-    info!("  CORS origins: {}", config.cors.allowed_origins);
+    info!("  CORS origins: {}", config.cors.allowed_origins.join(", "));
     info!("  Signature verification: {}", config.security.signature_enabled);
     info!("  Vips debug: {}", config.vips.debug);
     info!("  Vips concurrency: {}", config.vips.concurrency);

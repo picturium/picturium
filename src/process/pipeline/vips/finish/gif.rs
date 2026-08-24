@@ -12,7 +12,7 @@ pub(crate) fn finish_image(
 
     image
         .save_gif(Some(GifSaveOptions {
-            effort: output.encoder.gif.effort.get(output.effort),
+            effort: output.encoder.gif.effort,
             // dither: 1.0,
             keep,
             // reuse: true,

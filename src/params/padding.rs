@@ -1,5 +1,5 @@
 use serde::de::Visitor;
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::str::FromStr;
 
@@ -62,12 +62,28 @@ impl<'de> Deserialize<'de> for Padding {
                 write!(f, "padding value like 10,20,30,40")
             }
 
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                let all = u32::try_from(v).map_err(de::Error::custom)?;
+                Ok(Padding { top: all, right: all, bottom: all, left: all })
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                let all = u32::try_from(v).map_err(de::Error::custom)?;
+                Ok(Padding { top: all, right: all, bottom: all, left: all })
+            }
+
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
                 v.parse().map_err(de::Error::custom)
             }
         }
 
-        d.deserialize_str(V)
+        d.deserialize_any(V)
+    }
+}
+
+impl Serialize for Padding {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&format!("{},{},{},{}", self.top, self.right, self.bottom, self.left))
     }
 }
 

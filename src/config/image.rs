@@ -1,19 +1,11 @@
-use crate::config::{parse_env, ConfigFromEnv};
+use crate::enums::image_extend::ImageExtend;
 use crate::enums::image_fit::ImageFit;
 use crate::enums::image_gravity::ImageGravity;
 use crate::enums::image_resample::ImageResample;
-use anyhow::Result;
-use crate::enums::image_extend::ImageExtend;
+use serde::{Deserialize, Serialize};
 
-const DEFAULT_IMAGE_EXIF_AUTO_ROTATE: &str = "true";
-const DEFAULT_IMAGE_UPSIZE: &str = "false";
-const DEFAULT_IMAGE_EXTEND: &str = "bg";
-const DEFAULT_IMAGE_FIT: &str = "cover";
-const DEFAULT_IMAGE_GRAVITY: &str = "center";
-const DEFAULT_IMAGE_CROP_GRAVITY: &str = "center";
-const DEFAULT_IMAGE_RESAMPLE: &str = "lanczos3";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ImageConfig {
     pub auto_rotate: bool,
     pub upsize: bool,
@@ -24,16 +16,16 @@ pub struct ImageConfig {
     pub resample: ImageResample,
 }
 
-impl ConfigFromEnv for ImageConfig {
-    fn from_env() -> Result<Self> {
-        Ok(Self {
-            auto_rotate: parse_env("IMAGE_EXIF_AUTO_ROTATE", DEFAULT_IMAGE_EXIF_AUTO_ROTATE)?,
-            upsize: parse_env("IMAGE_UPSIZE", DEFAULT_IMAGE_UPSIZE)?,
-            extend: parse_env("IMAGE_EXTEND", DEFAULT_IMAGE_EXTEND)?,
-            fit: parse_env("IMAGE_FIT", DEFAULT_IMAGE_FIT)?,
-            gravity: parse_env("IMAGE_GRAVITY", DEFAULT_IMAGE_GRAVITY)?,
-            crop_gravity: parse_env("IMAGE_CROP_GRAVITY", DEFAULT_IMAGE_CROP_GRAVITY)?,
-            resample: parse_env("IMAGE_RESAMPLE", DEFAULT_IMAGE_RESAMPLE)?,
-        })
+impl Default for ImageConfig {
+    fn default() -> Self {
+        Self {
+            auto_rotate: true,
+            upsize: false,
+            extend: ImageExtend::Bg,
+            fit: ImageFit::Cover,
+            gravity: ImageGravity::Center,
+            crop_gravity: ImageGravity::Center,
+            resample: ImageResample::Lanczos3,
+        }
     }
 }

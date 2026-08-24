@@ -18,7 +18,7 @@ pub(crate) fn finish_image(
             q: quality as i32,
             bitdepth: config.bitdepth,
             compression: config.compression.into(),
-            effort: config.effort.get(output.effort),
+            effort: config.effort,
             subsample_mode: config.subsample.into(),
             encoder: config.encoder.into(),
             keep,

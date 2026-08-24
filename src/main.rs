@@ -12,7 +12,7 @@ use crate::health::health_check;
 use crate::process::process_file;
 use anyhow::Result;
 use axum::{response::{Html, IntoResponse}, routing::get, Router};
-use config::{Config, SharedConfig};
+use crate::config::{Config, SharedConfig};
 use std::sync::Arc;
 use crate::state::AppState;
 use tower_http::{
@@ -22,7 +22,6 @@ use tower_http::{
 };
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use crate::config::ConfigFromEnv;
 use crate::startup_logs::print_startup_logs;
 
 async fn root() -> impl IntoResponse {
@@ -40,19 +39,19 @@ fn setup_tracing(log_level: &str) {
 }
 
 fn configure_cors(config: &SharedConfig) -> CorsLayer {
-    if config.cors.allowed_origins == "*" {
+    if config.cors.is_permissive() {
         return CorsLayer::permissive();
     }
 
+    let origins = config
+        .cors
+        .allowed_origins
+        .iter()
+        .filter_map(|origin| origin.parse().ok())
+        .collect::<Vec<_>>();
+
     CorsLayer::new()
-        .allow_origin(
-            config
-                .cors
-                .allowed_origins
-                .split(',')
-                .map(|s| s.trim().parse().unwrap())
-                .collect::<Vec<_>>(),
-        )
+        .allow_origin(origins)
         .allow_methods(Any)
         .allow_headers(Any)
 }
@@ -70,9 +69,7 @@ fn create_app(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().ok();
-
-    let config = Arc::new(Config::from_env()?);
+    let config = Arc::new(Config::load()?);
     setup_tracing(&config.server.log_level);
 
     let state = AppState::new(config.clone());

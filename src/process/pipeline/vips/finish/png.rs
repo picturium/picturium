@@ -17,7 +17,7 @@ pub(crate) fn finish_image(
     image
         .save_png(Some(PngSaveOptions {
             q: quality as i32,
-            effort: config.effort.get(output.effort),
+            effort: config.effort,
             keep,
             palette: !lossless,
             compression: match lossless {

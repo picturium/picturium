@@ -1,19 +1,14 @@
-use anyhow::Result;
-use crate::config::{parse_env, ConfigFromEnv};
+use serde::{Deserialize, Serialize};
 
-const DEFAULT_VIPS_CONCURRENCY: &str = "1";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct VipsConfig {
     pub debug: bool,
     pub concurrency: i32,
 }
 
-impl ConfigFromEnv for VipsConfig {
-    fn from_env() -> Result<Self> {
-        Ok(Self {
-            debug: parse_env("VIPS_DEBUG", "false")?,
-            concurrency: parse_env("VIPS_CONCURRENCY", DEFAULT_VIPS_CONCURRENCY)?,
-        })
+impl Default for VipsConfig {
+    fn default() -> Self {
+        Self { debug: false, concurrency: 1 }
     }
 }

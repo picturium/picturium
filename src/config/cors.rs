@@ -1,17 +1,19 @@
-use anyhow::Result;
-use crate::config::{parse_env, ConfigFromEnv};
+use serde::{Deserialize, Serialize};
 
-const DEFAULT_CORS_ALLOWED_ORIGINS: &str = "*";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CorsConfig {
-    pub allowed_origins: String,
+    pub allowed_origins: Vec<String>,
 }
 
-impl ConfigFromEnv for CorsConfig {
-    fn from_env() -> Result<Self> {
-        Ok(Self {
-            allowed_origins: parse_env("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS)?,
-        })
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self { allowed_origins: vec!["*".into()] }
+    }
+}
+
+impl CorsConfig {
+    pub fn is_permissive(&self) -> bool {
+        self.allowed_origins.iter().any(|origin| origin == "*")
     }
 }

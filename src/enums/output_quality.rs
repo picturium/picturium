@@ -1,5 +1,5 @@
 use std::fmt;
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Visitor;
 use strum::EnumString;
 
@@ -25,6 +25,20 @@ impl<'de> Deserialize<'de> for OutputQuality {
                 write!(f, "auto, low, medium, high, maximum, or a number 0..100")
             }
 
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                match u8::try_from(v) {
+                    Ok(value) if (1..=100).contains(&value) => Ok(OutputQuality::Value(value)),
+                    _ => Err(de::Error::custom("invalid value for output quality parameter")),
+                }
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                match u8::try_from(v) {
+                    Ok(value) if (1..=100).contains(&value) => Ok(OutputQuality::Value(value)),
+                    _ => Err(de::Error::custom("invalid value for output quality parameter")),
+                }
+            }
+
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
                 match v {
                     "auto" => Ok(OutputQuality::Auto),
@@ -40,6 +54,19 @@ impl<'de> Deserialize<'de> for OutputQuality {
             }
         }
 
-        d.deserialize_str(V)
+        d.deserialize_any(V)
+    }
+}
+
+impl Serialize for OutputQuality {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            OutputQuality::Auto => s.serialize_str("auto"),
+            OutputQuality::Low => s.serialize_str("low"),
+            OutputQuality::Medium => s.serialize_str("medium"),
+            OutputQuality::High => s.serialize_str("high"),
+            OutputQuality::Maximum => s.serialize_str("maximum"),
+            OutputQuality::Value(value) => s.serialize_str(&value.to_string()),
+        }
     }
 }

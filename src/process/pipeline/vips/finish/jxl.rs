@@ -17,7 +17,7 @@ pub(crate) fn finish_image(
         .save_jxl(Some(JxlSaveOptions {
             tier: config.tier,
             distance: config.distance_per_quality * (100 - quality) as f64,
-            effort: config.effort.get(output.effort),
+            effort: config.effort,
             lossless: config.lossless,
             keep,
             background: &background,
