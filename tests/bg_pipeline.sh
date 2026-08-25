@@ -60,6 +60,25 @@ printf '%s\n' \
 gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite \
     -sOutputFile="${work_dir}/data/blank.pdf" "${work_dir}/blank.ps"
 
+printf '%s\n' \
+    '%!PS-Adobe-3.0' \
+    '%%BoundingBox: 0 0 40 20' \
+    '%%Pages: 3' \
+    '%%Page: 1 1' \
+    'showpage' \
+    '%%Page: 2 2' \
+    'showpage' \
+    '%%Page: 3 3' \
+    'showpage' > "${work_dir}/pages.ps"
+gs -q -dBATCH -dNOPAUSE -sDEVICE=pdfwrite \
+    -sOutputFile="${work_dir}/data/pages.pdf" "${work_dir}/pages.ps"
+
+# Files picturium cannot rasterise, for the raw-passthrough checks.
+printf 'picturium\n' > "${work_dir}/data/notes.txt"
+head -c 4096 /dev/urandom > "${work_dir}/data/archive.zip"
+gzip -c "${work_dir}/data/source.svg" > "${work_dir}/data/source.svgz"
+cp "${work_dir}/data/source.svgz" "${work_dir}/data/source.svg.gz"
+
 export HOST=127.0.0.1
 export PORT=20145
 export PICTURIUM_CONFIG="${work_dir}/config.toml"
@@ -70,6 +89,7 @@ export PICTURIUM__CACHE__DIR="${work_dir}/cache"
 export PICTURIUM__CACHE__MEMORY__ENABLED=false
 export PICTURIUM__CACHE__DISK__ENABLED=false
 export PICTURIUM__SECURITY__SIGNATURE_ENABLED=false
+export PICTURIUM__DATA__SERVE=txt
 export PICTURIUM__IMAGE__UPSIZE=false
 export RUSTFLAGS="-C linker-features=-lld"
 
@@ -168,6 +188,28 @@ assert_min_size() {
     local image="$1"
     local floor="$2"
     [[ "$(stat -c %s "$1")" -ge "${floor}" ]]
+}
+
+status_of() {
+    curl -so /dev/null -w '%{http_code}' "http://${HOST}:${PORT}/$1?$2"
+}
+
+header_of() {
+    curl -sD - -o /dev/null "http://${HOST}:${PORT}/$1?$2" \
+        | tr -d '\r' \
+        | awk -v name="$3:" 'tolower($1) == tolower(name) { $1 = ""; sub(/^ /, ""); print }'
+}
+
+pdf_pages() {
+    gs -q -dNODISPLAY -dNOSAFER \
+        -c "($1) (r) file runpdfbegin pdfpagecount = quit"
+}
+
+assert_status() {
+    local actual
+    actual="$(status_of "$1" "$2")"
+    echo "  $1?$2 -> ${actual} (expected $3)"
+    [[ "${actual}" == "$3" ]]
 }
 
 request source.png 'w=100&h=100&fit=contain&upsize=true&g=center&bg=ff0000&f=png' "${work_dir}/contain.png"
@@ -302,5 +344,74 @@ if PICTURIUM__OUTPUT__ENCODER__AVIF__BITDEPTH=7 PICTURIUM__SERVER__PORT=20147 \
 fi
 grep -q 'output.encoder.avif.bitdepth' "${work_dir}/invalid.log"
 echo "  invalid output.encoder.avif.bitdepth refused at startup"
+
+# --- document output (f=pdf / f=svg) ---------------------------------------
+# libvips cannot write PDF or SVG, so these serve the document itself.
+
+request pages.pdf 'f=pdf' "${work_dir}/whole.pdf"
+cmp "${work_dir}/whole.pdf" "${work_dir}/data/pages.pdf"
+[[ "$(header_of pages.pdf 'f=pdf' content-type)" == "application/pdf" ]]
+echo "  f=pdf served the source document unchanged"
+
+# `thumb` selects exact pages, not a contiguous range.
+request pages.pdf 'f=pdf&thumb=p:1,3' "${work_dir}/subset.pdf"
+subset_pages="$(pdf_pages "${work_dir}/subset.pdf")"
+echo "  f=pdf&thumb=p:1,3 produced ${subset_pages} pages"
+[[ "${subset_pages}" == "2" ]]
+
+# Asking for every page rewrites nothing.
+request pages.pdf 'f=pdf&thumb=p:1,2,3' "${work_dir}/all-pages.pdf"
+cmp "${work_dir}/all-pages.pdf" "${work_dir}/data/pages.pdf"
+
+# Pages past the end are dropped; a selection with none of them is a client error.
+request pages.pdf 'f=pdf&thumb=p:3,9' "${work_dir}/past-end.pdf"
+[[ "$(pdf_pages "${work_dir}/past-end.pdf")" == "1" ]]
+assert_status pages.pdf 'f=pdf&thumb=p:9' 400
+
+request source.svg 'f=svg' "${work_dir}/passthrough.svg"
+cmp "${work_dir}/passthrough.svg" "${work_dir}/data/source.svg"
+[[ "$(header_of source.svg 'f=svg' content-type)" == "image/svg+xml" ]]
+
+# `.svgz` and `.svg.gz` are both gzipped SVG and must say so.
+[[ "$(header_of source.svgz 'f=svg' content-encoding)" == "gzip" ]]
+[[ "$(header_of source.svg.gz 'f=svg' content-encoding)" == "gzip" ]]
+[[ "$(header_of source.svg.gz 'f=svg' content-type)" == "image/svg+xml" ]]
+echo "  svgz and svg.gz passthrough are marked gzip"
+
+# `.svg.gz` has a `gz` extension but must still rasterise as a vector source.
+request source.svg.gz 'w=40&h=20&f=png' "${work_dir}/from-svg-gz.png"
+assert_dimensions "${work_dir}/from-svg-gz.png" 40 20
+assert_pixel "${work_dir}/from-svg-gz.png" 20 10 0 0 255
+
+# A raster source cannot become a document.
+assert_status source.png 'f=pdf' 415
+assert_status source.png 'f=svg' 415
+
+# Rasterising a vector source still works.
+request source.svg 'w=40&h=20&f=png' "${work_dir}/rasterised.png"
+assert_dimensions "${work_dir}/rasterised.png" 40 20
+assert_pixel "${work_dir}/rasterised.png" 20 10 0 0 255
+
+# --- raw passthrough (data.serve) ------------------------------------------
+# `txt` is allowlisted above, `zip` is not.
+
+request notes.txt '' "${work_dir}/notes.txt"
+cmp "${work_dir}/notes.txt" "${work_dir}/data/notes.txt"
+[[ "$(header_of notes.txt '' content-type)" == "text/plain; charset=utf-8" ]]
+assert_status archive.zip '' 415
+
+# The passthrough path keeps its conditional and range handling.
+range_status="$(curl -so "${work_dir}/range.bin" -w '%{http_code}' \
+    -H 'Range: bytes=0-3' "http://${HOST}:${PORT}/notes.txt")"
+echo "  ranged passthrough returned ${range_status}"
+[[ "${range_status}" == "206" ]]
+[[ "$(stat -c %s "${work_dir}/range.bin")" == "4" ]]
+
+etag="$(header_of notes.txt '' etag)"
+[[ -n "${etag}" ]]
+conditional="$(curl -so /dev/null -w '%{http_code}' \
+    -H "If-None-Match: ${etag}" "http://${HOST}:${PORT}/notes.txt")"
+echo "  conditional passthrough returned ${conditional}"
+[[ "${conditional}" == "304" ]]
 
 echo "bg pipeline checks passed"

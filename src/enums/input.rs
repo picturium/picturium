@@ -1,5 +1,6 @@
 use std::path::Path;
-use strum::EnumString;
+use std::fmt;
+use strum::{Display, EnumString};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum InputFormat {
@@ -10,7 +11,18 @@ pub enum InputFormat {
     Unsupported,
 }
 
-#[derive(Debug, Clone, Copy, EnumString, PartialEq)]
+impl fmt::Display for InputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Vips(format) => format.fmt(f),
+            Self::Office(format) => format.fmt(f),
+            Self::Video(format) => format.fmt(f),
+            Self::Unsupported => f.write_str("unsupported"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, EnumString, Display, PartialEq)]
 #[strum(serialize_all = "lowercase")]
 pub enum VipsInputFormat {
     #[strum(serialize = "jpeg")]
@@ -33,20 +45,23 @@ pub enum VipsInputFormat {
     Raw,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Display)]
+#[strum(serialize_all = "lowercase")]
 pub enum OfficeInputFormat {
     Doc,
     Ppt,
     Xls,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Display)]
+#[strum(serialize_all = "lowercase")]
 pub enum VideoInputFormat {
     Mp4,
     Webm,
     Mkv,
     Avi,
     Av1,
+    #[strum(serialize = "3gp")]
     _3gp,
     M4v,
     Flv,
@@ -56,15 +71,23 @@ pub enum VideoInputFormat {
     Hevc,
 }
 
+pub fn is_gzipped_svg(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            let name = name.to_lowercase();
+            name.ends_with(".svgz") || name.ends_with(".svg.gz")
+        })
+}
+
 /// Resolves the MIME type of a source file from its extension.
 ///
 /// This mirrors the extension table in [`crate::process::source::Source::get_format`]
 /// (including the `.svg.gz` special case) so the MIME always matches the format
-/// detection. Used when serving an unchanged original via the `original` parameter,
-/// where we never construct an `OutputFormat` and `get_output_mime` does not apply.
+/// detection. Used when serving a file untouched, where we never construct an
+/// `OutputFormat` and `get_output_mime` does not apply.
 pub fn get_input_mime(path: &Path) -> &'static str {
-    // `.svg.gz` is detected as svg despite the `gz` extension.
-    if path.ends_with(".svg.gz") {
+    if is_gzipped_svg(path) {
         return "image/svg+xml";
     }
 
@@ -124,6 +147,42 @@ pub fn get_input_mime(path: &Path) -> &'static str {
         "mpeg" => "video/mpeg",
         "mts" => "video/mp2t",
         "hevc" => "video/mp4",
+        // Formats we do not process but may serve
+        "txt" | "md" => "text/plain; charset=utf-8",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "zip" => "application/zip",
+        "gz" => "application/gzip",
+        "mp3" => "audio/mpeg",
+        "m4a" => "audio/mp4",
+        "wav" => "audio/wav",
+        "ogg" | "oga" => "audio/ogg",
+        "flac" => "audio/flac",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recognises_both_spellings_of_gzipped_svg() {
+        assert!(is_gzipped_svg(Path::new("logo.svgz")));
+        assert!(is_gzipped_svg(Path::new("/data/logo.svg.gz")));
+        assert!(is_gzipped_svg(Path::new("LOGO.SVG.GZ")));
+        assert!(!is_gzipped_svg(Path::new("logo.svg")));
+        assert!(!is_gzipped_svg(Path::new("archive.gz")));
+    }
+
+    #[test]
+    fn gzipped_svg_keeps_the_svg_media_type() {
+        assert_eq!(get_input_mime(Path::new("logo.svg.gz")), "image/svg+xml");
+        assert_eq!(get_input_mime(Path::new("logo.svgz")), "image/svg+xml");
+        assert_eq!(get_input_mime(Path::new("archive.gz")), "application/gzip");
     }
 }

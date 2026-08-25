@@ -2,6 +2,7 @@ use super::conversion::{convert_to_pdf, wait_for_conversion};
 use super::lock::{acquire_conversion_lock, try_acquire_conversion_lock};
 use super::spawn_full_conversion;
 use crate::enums::input::{InputFormat, OfficeInputFormat};
+use crate::enums::output_format::OutputFormat;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::services::cache::path_generator::generate_intermediate_path;
 use crate::services::cache::sidecar;
@@ -78,13 +79,11 @@ pub(super) async fn process(
     Ok(first_page_pdf_path)
 }
 
-pub(super) fn is_requested(request: &PipelineRequest<'_>) -> bool {
-    request
-        .parameters
-        .thumbnail
-        .pages
-        .as_ref()
-        .map_or(true, |pages| pages.iter().all(|&page| page == 1))
+pub(super) fn is_requested(pages: &Option<Vec<u32>>, output_format: &OutputFormat) -> bool {
+    match pages {
+        Some(pages) => pages.iter().all(|&page| page == 1),
+        None => output_format != &OutputFormat::Pdf,
+    }
 }
 
 pub(super) fn pdf_path(request: &PipelineRequest<'_>, source_path: &PathBuf) -> String {
@@ -157,4 +156,26 @@ fn spawn_first_page_conversion(
 
         result
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bare_request_only_needs_the_first_page() {
+        assert!(is_requested(&None, &OutputFormat::Webp));
+    }
+
+    #[test]
+    fn asking_for_the_document_as_pdf_needs_every_page() {
+        assert!(!is_requested(&None, &OutputFormat::Pdf));
+    }
+
+    #[test]
+    fn an_explicit_page_selection_decides_regardless_of_output_format() {
+        assert!(is_requested(&Some(vec![1]), &OutputFormat::Pdf));
+        assert!(!is_requested(&Some(vec![2]), &OutputFormat::Webp));
+        assert!(!is_requested(&Some(vec![1, 2]), &OutputFormat::Pdf));
+    }
 }

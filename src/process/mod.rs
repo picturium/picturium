@@ -1,9 +1,12 @@
+mod document;
 mod download;
-mod original;
 pub mod pipeline;
+mod raw;
 pub mod source;
 
-use crate::enums::output_format::{get_output_extension, get_output_mime};
+use crate::enums::download::Download;
+use crate::enums::input::InputFormat;
+use crate::enums::output_format::{OutputFormat, get_output_extension, get_output_mime};
 use crate::params::RequestParams;
 use crate::params::parsed::Parameters;
 use crate::process::source::Source;
@@ -58,19 +61,29 @@ pub async fn process_file(
     let parameters = Parameters::new(&state.config, params);
 
     if parameters.original == true {
-        return match original::serve(&headers, &source, &parameters).await {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::error!("Error serving original {}: {e}", source.path.display());
-                Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Body::from("Error serving file"))
-                    .unwrap()
-            }
-        };
+        return serve_raw(&headers, &source.path, &parameters.download).await;
+    }
+
+    if matches!(source.format, InputFormat::Unsupported | InputFormat::Video(_)) {
+        if !state.config.data.may_serve(&source.path) {
+            debug!("Refusing to serve unprocessable file {}", source.path.display());
+            return unsupported_source(&source.path);
+        }
+
+        return serve_raw(&headers, &source.path, &parameters.download).await;
     }
 
     let mut pipeline_request = PipelineRequest::new(&headers, &state, &mut source, &parameters);
+
+    if matches!(pipeline_request.output_format, OutputFormat::Pdf | OutputFormat::Svg) {
+        return document::serve(&headers, &pipeline_request).await.unwrap_or_else(|e| {
+            tracing::error!("Error serving document: {e}");
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Error serving document"))
+                .unwrap()
+        });
+    }
 
     debug!(
         "Output format: {:?}, through: {:?}",
@@ -102,6 +115,39 @@ pub async fn process_file(
     };
 
     create_response(&pipeline_request, result)
+}
+
+async fn serve_raw(headers: &HeaderMap, path: &std::path::Path, download: &Download) -> Response {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("file");
+
+    match raw::serve(headers, path, download, name).await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!("Error serving {}: {e}", path.display());
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Error serving file"))
+                .unwrap()
+        }
+    }
+}
+
+fn unsupported_source(path: &std::path::Path) -> Response {
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("");
+
+    Response::builder()
+        .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .body(Body::from(format!(
+            "Unsupported source file type \"{extension}\""
+        )))
+        .unwrap()
 }
 
 fn create_response(pipeline_request: &PipelineRequest, result: Body) -> Response {

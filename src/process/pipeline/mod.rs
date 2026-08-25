@@ -1,5 +1,6 @@
 mod office;
 pub(crate) mod request;
+pub(crate) mod svg;
 mod video;
 mod vips;
 

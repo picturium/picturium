@@ -49,8 +49,10 @@ concurrency = 1
 [data]
 # Data directory root, skipped from URL [default: data]
 dir = "data"
-# Serve all files in data directory [default: false]
-serve_all = false
+# Extensions served as raw bytes when picturium cannot process them as an image
+# (e.g. "zip", "txt", "mp4"). Use ["*"] to serve every file. Anything not listed
+# is rejected with 415. [default: []]
+serve = []
 
 
 [cache]
@@ -76,6 +78,13 @@ limit = 1024
 # Allow loading SVG images larger than 10 MB [default: false]
 unlimited = false
 load_dpi = 72
+# Allow an SVG converted to PDF (`f=pdf`) to embed images its `<image href="...">`
+# elements point at, instead of only the ones inlined as `data:` URIs [default: false].
+# Even when enabled, a reference is followed only if it resolves inside the data
+# directory: absolute paths and `..` traversal are rejected, the same check requested
+# files go through. Leave it off if the data directory holds files one tenant may not
+# read, because an SVG placed there could otherwise pull them into its own PDF.
+allow_local_resources = false
 
 
 [pdf]

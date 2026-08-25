@@ -34,8 +34,8 @@ Output formats
 - [x] gif
 - [x] avif
 - [x] jxl
-- [ ] pdf
-- [ ] svg
+- [x] pdf (document passthrough, see `f`)
+- [x] svg (document passthrough, see `f`)
 
 
 - [ ] `w` (int): width of the output image in pixels [default: 0]
@@ -60,15 +60,23 @@ Output formats
 - [x] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
 - [x] `original` (bool): return original image instead of processed one [default: false]
 - [x] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
-- [ ] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg, ...) [default: auto]
-- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72)
-- [x] `style` (string): apply custom CSS styles to SVG image, encode in base64
+- [x] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg) [default: auto]
+  - `auto` picks the first entry of `output.format_priority` the client accepts, falling back to webp
+  - `pdf` and `svg` are **document** formats, not image formats: libvips can rasterize them but cannot write them, so the document itself is served
+    - `f=svg` requires an SVG source (`.svg` / `.svgz`), otherwise 415
+    - `f=pdf` requires a PDF, office document or SVG source, otherwise 415; an office document is converted with LibreOffice first, an SVG is converted to a single-page vector PDF
+      - an SVG's `<image>` elements are embedded only when they are inlined as `data:` URIs; file references are followed only if `svg.allow_local_resources` is on, and even then only inside the data directory
+    - `f=pdf` with `thumb` returns a PDF of exactly those pages (`thumb=p:1,4` gives two pages, not 4); pages past the end are ignored, a selection with none of them is 400
+    - sizing, quality, filter and metadata parameters do not apply to document responses, the same as under `original`; `dpi` and `style` are the exception, they apply to an SVG converted to PDF
+  - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
+- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
+- [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
 - [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
 - [x] `limit`
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`; not supported for `gif` output, which has no quality setting
-- [ ] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1,4|timing:500`
+- [ ] `thumb` (string): generate thumbnail from file, or a specific page of PDF document in format `thumb=p:1,4|timing:500`; under `f=pdf` it selects the pages of the returned PDF instead
   - [ ] `p`|`page`|`pages` (int): page of the document to generate thumbnail, [default: 1], or animate between multiple pages `1,2,3`
   - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `p` is used as a starting page
   - [ ] `timing` (float): animation timing in milliseconds, [default: 500]

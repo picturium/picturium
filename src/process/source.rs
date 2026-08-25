@@ -1,5 +1,7 @@
 use crate::config::SharedConfig;
-use crate::enums::input::{InputFormat, OfficeInputFormat, VideoInputFormat, VipsInputFormat};
+use crate::enums::input::{
+    InputFormat, OfficeInputFormat, VideoInputFormat, VipsInputFormat, is_gzipped_svg,
+};
 use crate::params::RequestParams;
 use anyhow::{Result, anyhow};
 use std::path::{Path, PathBuf};
@@ -43,7 +45,7 @@ impl Source {
         Ok(source)
     }
 
-    fn get_path(path: &str, data_dir: &str) -> Option<PathBuf> {
+    pub(crate) fn get_path(path: &str, data_dir: &str) -> Option<PathBuf> {
         let canonical_data_dir = Path::new(data_dir).canonicalize().ok()?;
         let canonical_path = Path::new(path).canonicalize().ok()?;
 
@@ -66,6 +68,10 @@ impl Source {
     }
 
     pub(crate) fn get_format(path: &PathBuf) -> InputFormat {
+        if is_gzipped_svg(path) {
+            return InputFormat::Vips(VipsInputFormat::Svg);
+        }
+
         let extension = match path.extension() {
             Some(ext) => match ext.to_str() {
                 Some(ext) => ext.to_lowercase(),
@@ -74,12 +80,7 @@ impl Source {
             None => return InputFormat::Unsupported,
         };
 
-        let extension = match path.ends_with(".svg.gz") {
-            true => "svg".into(),
-            false => extension,
-        };
-
-        let format = match extension.to_lowercase().as_str() {
+        let format = match extension.as_str() {
             "jpg" | "jpeg" | "jpe" | "jif" | "jfif" | "jfi" => {
                 InputFormat::Vips(VipsInputFormat::Jpeg)
             }
@@ -125,5 +126,30 @@ impl Source {
         };
 
         format
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gzipped_svg_is_detected_as_svg() {
+        assert!(matches!(
+            Source::get_format(&PathBuf::from("logo.svg.gz")),
+            InputFormat::Vips(VipsInputFormat::Svg)
+        ));
+        assert!(matches!(
+            Source::get_format(&PathBuf::from("logo.svgz")),
+            InputFormat::Vips(VipsInputFormat::Svg)
+        ));
+    }
+
+    #[test]
+    fn a_plain_archive_is_not_mistaken_for_svg() {
+        assert!(matches!(
+            Source::get_format(&PathBuf::from("archive.gz")),
+            InputFormat::Unsupported
+        ));
     }
 }

@@ -65,6 +65,7 @@ impl Config {
                     .try_parsing(true)
                     .list_separator(",")
                     .with_list_parse_key("cors.allowed_origins")
+                    .with_list_parse_key("data.serve")
                     .with_list_parse_key("output.format_priority")
                     .with_list_parse_key("output.metadata"),
             )
