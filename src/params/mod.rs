@@ -1,3 +1,4 @@
+pub mod animate;
 pub mod aspect_ratio;
 pub mod byte_size;
 pub mod padding;
@@ -29,6 +30,7 @@ use crate::enums::original::Original;
 use crate::enums::output_format::OutputFormat;
 use crate::enums::output_quality::OutputQuality;
 use crate::enums::upsize::Upsize;
+use crate::params::animate::Animate;
 use crate::params::background::Background;
 use crate::params::crop::Crop;
 use crate::params::dpr::deserialize_dpr;
@@ -94,6 +96,8 @@ pub struct RequestParams {
     pub pages: Option<Pages>,
     #[serde(alias = "thumb")]
     pub thumbnail: Option<Thumbnail>,
+    #[serde(alias = "anim")]
+    pub animate: Option<Animate>,
     #[serde(alias = "t")]
     pub time: Option<Time>,
     pub watermark: Option<Watermark>,

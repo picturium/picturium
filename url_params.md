@@ -80,8 +80,9 @@ Output formats
 - [x] `limit`
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`; not supported for `gif` output, which has no quality setting
-- [ ] `thumb` (string): generate thumbnail from file in format `thumb=frames:10|timing:500`
+- [ ] `thumb` (string): thumbnail parameters in format `thumb=page:1,2`
   - [ ] `p`|`page`|`pages` (string): **deprecated**, use the top-level `page`|`pages` parameter, which shares the same syntax and takes precedence when both are given
+- [ ] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500`
   - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `pages` is used as a starting page
   - [ ] `timing` (float): animation timing in milliseconds, [default: 500]
 - [ ] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; for cropping the image, at least one of `w` or `h` must be set

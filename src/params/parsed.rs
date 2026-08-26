@@ -11,6 +11,7 @@ use crate::enums::original::Original;
 use crate::enums::output_format::OutputFormat;
 use crate::enums::output_quality::OutputQuality;
 use crate::enums::upsize::Upsize;
+use crate::params::animate::Animate;
 use crate::params::aspect_ratio::AspectRatio;
 use crate::params::background::Background;
 use crate::params::crop::Crop;
@@ -20,7 +21,6 @@ use crate::params::metadata::Metadata;
 use crate::params::padding::Padding;
 use crate::params::RequestParams;
 use crate::params::rotate::Rotate;
-use crate::params::thumbnail::Thumbnail;
 use crate::params::time::Time;
 use crate::params::watermark::Watermark;
 
@@ -56,7 +56,7 @@ pub struct Parameters {
     pub fallback: Option<String>,
     pub limits: Limits,
     pub pages: Option<Vec<u32>>,
-    pub thumbnail: Thumbnail,
+    pub animate: Animate,
     pub time: Option<Time>,
     pub watermark: Watermark,
 }
@@ -70,8 +70,7 @@ impl Parameters {
         let watermark = params.watermark.unwrap_or_default().apply_dpr(dpr);
 
         // `thumb=p:` is deprecated; new `page`|`pages` parameter takes priority
-        let mut thumbnail = params.thumbnail.unwrap_or_default();
-        let pages = params.pages.map(|pages| pages.0).or(thumbnail.pages.take());
+        let pages = params.pages.map(|pages| pages.0).or_else(|| params.thumbnail.and_then(|thumbnail| thumbnail.pages));
 
         Self {
             force: params.force.unwrap_or_default(),
@@ -111,7 +110,7 @@ impl Parameters {
                 limits
             },
             pages,
-            thumbnail,
+            animate: params.animate.unwrap_or_default(),
             time: params.time,
             watermark,
         }
@@ -137,19 +136,16 @@ mod tests {
         });
 
         assert_eq!(parameters.pages, Some(vec![5]));
-        assert_eq!(parameters.thumbnail.pages, None);
     }
 
     #[test]
     fn the_deprecated_thumb_page_still_selects_pages_on_its_own() {
         let parameters = resolve(RequestParams {
-            thumbnail: Some("p:2|timing:500".parse().unwrap()),
+            thumbnail: Some("p:2".parse().unwrap()),
             ..Default::default()
         });
 
         assert_eq!(parameters.pages, Some(vec![2]));
-        assert_eq!(parameters.thumbnail.pages, None);
-        assert_eq!(parameters.thumbnail.timing, Some(500));
     }
 
     #[test]

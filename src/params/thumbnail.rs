@@ -7,8 +7,6 @@ use crate::params::pages::parse_pages;
 #[derive(Debug, Clone, Default)]
 pub struct Thumbnail {
     pub pages: Option<Vec<u32>>,
-    pub frames: Option<i16>,
-    pub timing: Option<u16>,
 }
 
 #[derive(Debug)]
@@ -39,18 +37,6 @@ impl FromStr for Thumbnail {
                 "p" | "page" | "pages" => thumb.pages = Some(
                     parse_pages(value).map_err(|e| ThumbnailParseError(e.to_string()))?
                 ),
-                "frames" => thumb.frames = Some(
-                    value.parse::<i16>().map_err(|_| ThumbnailParseError(format!("Invalid frames value: '{value}'")))?,
-                ),
-                "timing" => {
-                    let timing = value.parse::<u16>().map_err(|_| ThumbnailParseError(format!("Invalid timing value: '{value}'")))?;
-
-                    if !(5..=5000).contains(&timing) {
-                        return Err(ThumbnailParseError(format!("Timing value must be between 5 and 5000 ms, got '{timing}'")));
-                    }
-
-                    thumb.timing = Some(timing);
-                },
                 _ => return Err(ThumbnailParseError(format!("Unknown thumb key: '{key}'"))),
             }
         }
@@ -66,7 +52,7 @@ impl<'de> Deserialize<'de> for Thumbnail {
             type Value = Thumbnail;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "thumb parameters in format thumb=page:1,2|frames:10|timing:10")
+                write!(f, "thumb parameters in format thumb=page:1,2")
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {

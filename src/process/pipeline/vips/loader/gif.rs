@@ -5,11 +5,7 @@ use picturium_libvips::VipsImage;
 
 pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
     let mut params = vec![];
-    let mut pages = 1;
-
-    if request.parameters.thumbnail.frames.is_some() {
-        pages = request.parameters.thumbnail.frames.unwrap();
-    }
+    let pages = request.parameters.animate.frames.unwrap_or(1);
 
     let pages: String = format!("{pages}");
     params.push(("n", pages.as_str()));
