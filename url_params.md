@@ -25,7 +25,7 @@ Input formats // from InputFormat enum
 - [x] office (doc, ppt, xls)
 - [ ] ai (inkscape)
 - [ ] cdr (inkscape)
-- [ ] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg)
+- [x] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg, mts, hevc)
 
 Output formats
 - [x] jpeg
@@ -71,6 +71,9 @@ Output formats
   - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
 - [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
 - [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most 1000 pages; under `f=pdf` it selects the pages of the returned PDF instead
+  - for a **video** source it is a frame number instead, and only the first one is used (`pages=250` is the 250th frame); an exact frame means decoding every frame before it, so `t` is much more performant on a long video
+- [x] `t`|`time` (string): position of the frame to extract from a **video** source, in seconds (`t=5`, `t=5.25`) or as a timecode (`t=00:01:30`) [default: `video.default_time`]; takes precedence over `pages`, and seeks to the nearest keyframe, so it is more performant on a long video as `page`
+  - when a position past the end of the video is specified, error 500 is returned
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
 - [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails

@@ -1,3 +1,4 @@
+mod lock;
 mod office;
 pub(crate) mod request;
 pub(crate) mod svg;
@@ -12,6 +13,7 @@ use anyhow::Result;
 pub async fn resolve_source_path(request: &PipelineRequest<'_>) -> Result<String> {
     match request.source.format {
         InputFormat::Office(_) => office::process(request).await,
+        InputFormat::Video(_) => video::process(request).await,
         _ => Ok(request.source.path.to_string_lossy().to_string()),
     }
 }

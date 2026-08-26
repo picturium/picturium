@@ -12,6 +12,7 @@ mod image;
 mod watermark;
 pub mod output;
 mod office;
+mod video;
 
 use crate::config::cache::CacheConfig;
 use crate::config::cors::CorsConfig;
@@ -23,6 +24,7 @@ use crate::config::pdf::PdfConfig;
 use crate::config::security::SecurityConfig;
 use crate::config::server::ServerConfig;
 use crate::config::svg::SvgConfig;
+use crate::config::video::VideoConfig;
 use crate::config::vips::VipsConfig;
 use crate::config::watermark::WatermarkConfig;
 use anyhow::{Context, Result};
@@ -47,6 +49,7 @@ pub struct Config {
     pub watermark: WatermarkConfig,
     pub output: OutputConfig,
     pub office: OfficeConfig,
+    pub video: VideoConfig,
 }
 
 impl Config {

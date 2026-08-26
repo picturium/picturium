@@ -53,7 +53,7 @@ pub async fn process_file(
     };
 
     let parameters = Parameters::new(&state.config, params);
-    let passthrough = parameters.original == true || matches!(source.format, InputFormat::Unsupported | InputFormat::Video(_));
+    let passthrough = parameters.original == true || matches!(source.format, InputFormat::Unsupported);
 
     if passthrough {
         if parameters.original != true && !state.config.data.may_serve(&source.path) {

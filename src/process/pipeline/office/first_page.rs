@@ -1,5 +1,5 @@
 use super::conversion::{convert_to_pdf, wait_for_conversion};
-use super::lock::{acquire_conversion_lock, try_acquire_conversion_lock};
+use super::super::lock::{acquire_conversion_lock, try_acquire_conversion_lock};
 use super::spawn_full_conversion;
 use crate::enums::input::{InputFormat, OfficeInputFormat};
 use crate::enums::output_format::OutputFormat;

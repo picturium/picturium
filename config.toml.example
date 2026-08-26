@@ -100,6 +100,16 @@ load_dpi = 72
 conversion_timeout = 30
 
 
+[video]
+# Frame to extract when the request asks for none, in seconds or as an ffmpeg
+# timecode [default: "1"]. A second in dodges most black or fading-in first
+# frames; seeking is to the nearest keyframe, so the cost does not grow with
+# the length of the video.
+default_time = "1"
+# Timeout for a single frame extraction in seconds [default: 15]
+extraction_timeout = 15
+
+
 [image]
 # Automatically rotate image based on EXIF orientation tag [default: true]
 auto_rotate = true

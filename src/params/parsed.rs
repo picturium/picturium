@@ -21,6 +21,7 @@ use crate::params::padding::Padding;
 use crate::params::RequestParams;
 use crate::params::rotate::Rotate;
 use crate::params::thumbnail::Thumbnail;
+use crate::params::time::Time;
 use crate::params::watermark::Watermark;
 
 const DEFAULT_DPR: f32 = 1.0;
@@ -56,6 +57,7 @@ pub struct Parameters {
     pub limits: Limits,
     pub pages: Option<Vec<u32>>,
     pub thumbnail: Thumbnail,
+    pub time: Option<Time>,
     pub watermark: Watermark,
 }
 
@@ -110,6 +112,7 @@ impl Parameters {
             },
             pages,
             thumbnail,
+            time: params.time,
             watermark,
         }
     }

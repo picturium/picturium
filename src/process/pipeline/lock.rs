@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use fs4::{FileExt, TryLockError};
 use std::fs::{File, OpenOptions};
 
-pub(super) async fn acquire_conversion_lock(pdf_path: &str) -> Result<File> {
-    let lock_path = format!("{pdf_path}.lock");
+pub(super) async fn acquire_conversion_lock(path: &str) -> Result<File> {
+    let lock_path = format!("{path}.lock");
 
     tokio::task::spawn_blocking(move || -> Result<File> {
         let lock_file = open_lock_file(&lock_path)?;
@@ -17,8 +17,8 @@ pub(super) async fn acquire_conversion_lock(pdf_path: &str) -> Result<File> {
     .context("conversion lock task failed")?
 }
 
-pub(super) async fn try_acquire_conversion_lock(pdf_path: &str) -> Result<Option<File>> {
-    let lock_path = format!("{pdf_path}.lock");
+pub(super) async fn try_acquire_conversion_lock(path: &str) -> Result<Option<File>> {
+    let lock_path = format!("{path}.lock");
 
     tokio::task::spawn_blocking(move || -> Result<Option<File>> {
         let lock_file = open_lock_file(&lock_path)?;

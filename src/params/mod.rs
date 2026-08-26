@@ -13,6 +13,7 @@ pub mod scale;
 pub mod style;
 pub mod limits;
 pub mod thumbnail;
+pub mod time;
 pub mod watermark;
 pub mod color;
 pub mod parsed;
@@ -40,6 +41,7 @@ use crate::params::rotate::Rotate;
 use crate::params::scale::deserialize_scale;
 use crate::params::style::deserialize_style;
 use crate::params::thumbnail::Thumbnail;
+use crate::params::time::Time;
 use aspect_ratio::AspectRatio;
 use serde::Deserialize;
 use crate::enums::force::Force;
@@ -92,6 +94,8 @@ pub struct RequestParams {
     pub pages: Option<Pages>,
     #[serde(alias = "thumb")]
     pub thumbnail: Option<Thumbnail>,
+    #[serde(alias = "t")]
+    pub time: Option<Time>,
     pub watermark: Option<Watermark>,
 }
 

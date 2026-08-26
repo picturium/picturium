@@ -1,6 +1,5 @@
 mod conversion;
 mod first_page;
-mod lock;
 
 use crate::process::pipeline::request::PipelineRequest;
 use crate::services::cache::path_generator::generate_intermediate_path;
@@ -15,7 +14,7 @@ use tokio::task::JoinHandle;
 use tracing::error;
 
 use self::conversion::{convert_to_pdf, wait_for_conversion};
-use self::lock::acquire_conversion_lock;
+use super::lock::acquire_conversion_lock;
 
 pub async fn process(request: &PipelineRequest<'_>) -> Result<String> {
     let source_path = &request.source.path;
