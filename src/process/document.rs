@@ -13,17 +13,18 @@ use crate::process::download::apply_disposition;
 use crate::process::pipeline;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::raw;
+use crate::services::http_cache::{self, Validators};
 
 /// Serve PDF and SVG files
-pub(super) async fn serve(headers: &HeaderMap, request: &PipelineRequest<'_>) -> Result<Response> {
+pub(super) async fn serve(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
     match request.output_format {
-        OutputFormat::Svg => serve_svg(headers, request).await,
-        OutputFormat::Pdf => serve_pdf(headers, request).await,
+        OutputFormat::Svg => serve_svg(headers, request, cache_control).await,
+        OutputFormat::Pdf => serve_pdf(headers, request, validators, cache_control).await,
         ref format => Err(anyhow!("{format:?} is not a document format")),
     }
 }
 
-async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>) -> Result<Response> {
+async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>, cache_control: &str) -> Result<Response> {
     if !matches!(request.source.format, InputFormat::Vips(VipsInputFormat::Svg)) {
         return Ok(unsupported(&OutputFormat::Svg, request));
     }
@@ -35,10 +36,10 @@ async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>) -> Result
         .and_then(|name| name.to_str())
         .unwrap_or("image.svg");
 
-    raw::serve(headers, &request.source.path, &request.parameters.download, name).await
+    raw::serve(headers, &request.source.path, &request.parameters.download, name, cache_control).await
 }
 
-async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>) -> Result<Response> {
+async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
     let path = match request.source.format {
         InputFormat::Vips(VipsInputFormat::Pdf) | InputFormat::Office(_) => {
             pipeline::resolve_source_path(request).await?
@@ -51,12 +52,12 @@ async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>) -> Result
     let name = get_pdf_name(request);
 
     let Some(pages) = request.parameters.thumbnail.pages.as_deref() else {
-        return raw::serve(headers, path, &request.parameters.download, &name).await;
+        return raw::serve(headers, path, &request.parameters.download, &name, cache_control).await;
     };
 
     match tokio::task::block_in_place(|| get_page_subset(path, pages))? {
-        Subset::Whole => raw::serve(headers, path, &request.parameters.download, &name).await,
-        Subset::Pages(pdf) => Ok(respond(pdf, &request.parameters.download, &name)),
+        Subset::Whole => raw::serve(headers, path, &request.parameters.download, &name, cache_control).await,
+        Subset::Pages(pdf) => Ok(respond(pdf, &request.parameters.download, &name, validators, cache_control)),
         Subset::OutOfRange => Ok(out_of_range(pages)),
     }
 }
@@ -107,10 +108,15 @@ fn get_pdf_name(request: &PipelineRequest<'_>) -> String {
     format!("{stem}.pdf")
 }
 
-fn respond(pdf: Vec<u8>, download: &Download, name: &str) -> Response {
+fn respond(pdf: Vec<u8>, download: &Download, name: &str, validators: Option<&Validators>, cache_control: &str) -> Response {
     let builder = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", get_output_mime(&OutputFormat::Pdf));
+    
+    let builder = match validators {
+        Some(validators) => validators.apply(builder, cache_control, None),
+        None => http_cache::apply(builder, None, None, cache_control, None),
+    };
 
     apply_disposition(builder, download, name)
         .body(Body::from(pdf))
@@ -138,6 +144,7 @@ fn text(status: StatusCode, message: String) -> Response {
     Response::builder()
         .status(status)
         .header("Content-Type", "text/plain; charset=utf-8")
+        .header(axum::http::header::CACHE_CONTROL, http_cache::NO_STORE)
         .body(Body::from(message))
         .unwrap()
 }

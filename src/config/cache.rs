@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct CacheConfig {
     pub dir: String,
+    pub cache_control: String,
     pub memory: MemoryCacheConfig,
     pub disk: DiskCacheConfig,
 }
@@ -12,6 +13,7 @@ impl Default for CacheConfig {
     fn default() -> Self {
         Self {
             dir: "cache".into(),
+            cache_control: "public, max-age=604800, must-revalidate".into(),
             memory: MemoryCacheConfig::default(),
             disk: DiskCacheConfig::default(),
         }

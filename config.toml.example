@@ -58,6 +58,10 @@ serve = []
 [cache]
 # Cache directory [default: cache]
 dir = "cache"
+# `Cache-Control` sent with every successful response, verbatim.
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control
+# [default: "public, max-age=604800, must-revalidate"]
+cache_control = "public, max-age=604800, must-revalidate"
 
 [cache.memory]
 enabled = true
