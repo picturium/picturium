@@ -26,7 +26,7 @@ pub async fn process(request: &PipelineRequest<'_>) -> Result<String> {
         return Ok(pdf_path);
     }
 
-    let requested_pages = &request.parameters.thumbnail.pages;
+    let requested_pages = &request.parameters.pages;
 
     if first_page::is_requested(requested_pages, &request.output_format) {
         return first_page::process(source_path, &pdf_path, duration, request).await;

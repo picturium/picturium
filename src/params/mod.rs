@@ -8,6 +8,7 @@ pub mod crop;
 pub mod dpr;
 pub mod filter;
 pub mod metadata;
+pub mod pages;
 pub mod scale;
 pub mod style;
 pub mod limits;
@@ -34,6 +35,7 @@ use crate::params::filter::Filter;
 use crate::params::limits::Limits;
 use crate::params::metadata::{deserialize_metadata, Metadata};
 use crate::params::padding::Padding;
+use crate::params::pages::Pages;
 use crate::params::rotate::Rotate;
 use crate::params::scale::deserialize_scale;
 use crate::params::style::deserialize_style;
@@ -86,6 +88,8 @@ pub struct RequestParams {
     pub fallback: Option<String>,
     #[serde(alias = "limit")]
     pub limits: Option<Limits>,
+    #[serde(alias = "page")]
+    pub pages: Option<Pages>,
     #[serde(alias = "thumb")]
     pub thumbnail: Option<Thumbnail>,
     pub watermark: Option<Watermark>,

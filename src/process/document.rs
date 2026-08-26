@@ -51,7 +51,7 @@ async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validator
     let path = Path::new(&path);
     let name = get_pdf_name(request);
 
-    let Some(pages) = request.parameters.thumbnail.pages.as_deref() else {
+    let Some(pages) = request.parameters.pages.as_deref() else {
         return raw::serve(headers, path, &request.parameters.download, &name, cache_control).await;
     };
 

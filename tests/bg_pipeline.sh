@@ -353,20 +353,39 @@ cmp "${work_dir}/whole.pdf" "${work_dir}/data/pages.pdf"
 [[ "$(header_of pages.pdf 'f=pdf' content-type)" == "application/pdf" ]]
 echo "  f=pdf served the source document unchanged"
 
-# `thumb` selects exact pages, not a contiguous range.
-request pages.pdf 'f=pdf&thumb=p:1,3' "${work_dir}/subset.pdf"
+# `pages` selects exact pages, not a contiguous range.
+request pages.pdf 'f=pdf&pages=1,3' "${work_dir}/subset.pdf"
 subset_pages="$(pdf_pages "${work_dir}/subset.pdf")"
-echo "  f=pdf&thumb=p:1,3 produced ${subset_pages} pages"
+echo "  f=pdf&pages=1,3 produced ${subset_pages} pages"
 [[ "${subset_pages}" == "2" ]]
 
 # Asking for every page rewrites nothing.
-request pages.pdf 'f=pdf&thumb=p:1,2,3' "${work_dir}/all-pages.pdf"
+request pages.pdf 'f=pdf&pages=1,2,3' "${work_dir}/all-pages.pdf"
 cmp "${work_dir}/all-pages.pdf" "${work_dir}/data/pages.pdf"
 
 # Pages past the end are dropped; a selection with none of them is a client error.
-request pages.pdf 'f=pdf&thumb=p:3,9' "${work_dir}/past-end.pdf"
+request pages.pdf 'f=pdf&pages=3,9' "${work_dir}/past-end.pdf"
 [[ "$(pdf_pages "${work_dir}/past-end.pdf")" == "1" ]]
-assert_status pages.pdf 'f=pdf&thumb=p:9' 400
+assert_status pages.pdf 'f=pdf&pages=9' 400
+
+# Ranges expand, in both the new and the deprecated spelling.
+request pages.pdf 'f=pdf&pages=2-3' "${work_dir}/range.pdf"
+[[ "$(pdf_pages "${work_dir}/range.pdf")" == "2" ]]
+request pages.pdf 'f=pdf&thumb=p:2-3' "${work_dir}/deprecated-range.pdf"
+[[ "$(pdf_pages "${work_dir}/deprecated-range.pdf")" == "2" ]]
+assert_status pages.pdf 'f=pdf&pages=3-1' 400
+echo "  page ranges expand for pages and thumb=p:"
+
+# `page` is an alias, and the deprecated `thumb=p:` still selects pages.
+request pages.pdf 'f=pdf&page=2' "${work_dir}/alias.pdf"
+[[ "$(pdf_pages "${work_dir}/alias.pdf")" == "1" ]]
+request pages.pdf 'f=pdf&thumb=p:1,3' "${work_dir}/deprecated.pdf"
+[[ "$(pdf_pages "${work_dir}/deprecated.pdf")" == "2" ]]
+
+# With both spellings the top-level parameter wins.
+request pages.pdf 'f=pdf&pages=1&thumb=p:1,2,3' "${work_dir}/precedence.pdf"
+[[ "$(pdf_pages "${work_dir}/precedence.pdf")" == "1" ]]
+echo "  pages overrides the deprecated thumb=p:"
 
 request source.svg 'f=svg' "${work_dir}/passthrough.svg"
 cmp "${work_dir}/passthrough.svg" "${work_dir}/data/source.svg"

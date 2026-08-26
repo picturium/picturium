@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use serde::{de, Deserialize, Deserializer};
 use serde::de::Visitor;
+use crate::params::pages::parse_pages;
 
 #[derive(Debug, Clone, Default)]
 pub struct Thumbnail {
@@ -34,16 +35,10 @@ impl FromStr for Thumbnail {
             let (key, value) = part.split_once(':').ok_or_else(|| ThumbnailParseError(format!("Missing ':' in thumb segment '{part}'")))?;
 
             match key {
-                "p" | "page" | "pages" => {
-                    thumb.pages = Some(
-                        value.split(',')
-                            .map(|s| s.parse::<u32>()
-                                .map_err(|_| ThumbnailParseError(format!("Invalid page value: '{value}'")))
-                                .and_then(|p| if p >= 1 { Ok(p) } else { Err(ThumbnailParseError(format!("Page value must be between 1 and {}, got '{p}'", u32::MAX))) })
-                            )
-                            .collect::<Result<Vec<u32>, _>>()?
-                    );
-                },
+                // Deprecated, in favor of top-level `page`|`pages` parameter
+                "p" | "page" | "pages" => thumb.pages = Some(
+                    parse_pages(value).map_err(|e| ThumbnailParseError(e.to_string()))?
+                ),
                 "frames" => thumb.frames = Some(
                     value.parse::<i16>().map_err(|_| ThumbnailParseError(format!("Invalid frames value: '{value}'")))?,
                 ),

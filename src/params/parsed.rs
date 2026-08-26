@@ -54,6 +54,7 @@ pub struct Parameters {
     pub metadata: Metadata,
     pub fallback: Option<String>,
     pub limits: Limits,
+    pub pages: Option<Vec<u32>>,
     pub thumbnail: Thumbnail,
     pub watermark: Watermark,
 }
@@ -65,6 +66,10 @@ impl Parameters {
 
         let padding = params.padding.map(|p| p.apply_dpr(dpr));
         let watermark = params.watermark.unwrap_or_default().apply_dpr(dpr);
+
+        // `thumb=p:` is deprecated; new `page`|`pages` parameter takes priority
+        let mut thumbnail = params.thumbnail.unwrap_or_default();
+        let pages = params.pages.map(|pages| pages.0).or(thumbnail.pages.take());
 
         Self {
             force: params.force.unwrap_or_default(),
@@ -103,8 +108,49 @@ impl Parameters {
 
                 limits
             },
-            thumbnail: params.thumbnail.unwrap_or_default(),
+            pages,
+            thumbnail,
             watermark,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::params::pages::Pages;
+    use std::sync::Arc;
+
+    fn resolve(params: RequestParams) -> Parameters {
+        Parameters::new(&Arc::new(crate::config::Config::default()), params)
+    }
+
+    #[test]
+    fn the_top_level_pages_parameter_wins_over_the_deprecated_thumb_page() {
+        let parameters = resolve(RequestParams {
+            pages: Some(Pages(vec![5])),
+            thumbnail: Some("p:2".parse().unwrap()),
+            ..Default::default()
+        });
+
+        assert_eq!(parameters.pages, Some(vec![5]));
+        assert_eq!(parameters.thumbnail.pages, None);
+    }
+
+    #[test]
+    fn the_deprecated_thumb_page_still_selects_pages_on_its_own() {
+        let parameters = resolve(RequestParams {
+            thumbnail: Some("p:2|timing:500".parse().unwrap()),
+            ..Default::default()
+        });
+
+        assert_eq!(parameters.pages, Some(vec![2]));
+        assert_eq!(parameters.thumbnail.pages, None);
+        assert_eq!(parameters.thumbnail.timing, Some(500));
+    }
+
+    #[test]
+    fn no_page_selection_leaves_pages_unset() {
+        assert_eq!(resolve(RequestParams::default()).pages, None);
     }
 }

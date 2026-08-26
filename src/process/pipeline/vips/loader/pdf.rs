@@ -16,7 +16,6 @@ fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromP
 
     let min_page = request
         .parameters
-        .thumbnail
         .pages
         .as_ref()
         .unwrap_or(&empty_vec)
@@ -26,7 +25,6 @@ fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromP
 
     let max_page = request
         .parameters
-        .thumbnail
         .pages
         .as_ref()
         .unwrap_or(&empty_vec)
