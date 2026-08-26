@@ -1,5 +1,6 @@
 mod document;
 mod download;
+mod outline;
 pub mod pipeline;
 mod raw;
 pub mod source;

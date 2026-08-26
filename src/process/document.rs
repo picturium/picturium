@@ -10,6 +10,7 @@ use crate::enums::download::Download;
 use crate::enums::input::{InputFormat, VipsInputFormat};
 use crate::enums::output_format::{OutputFormat, get_output_mime, get_output_extension};
 use crate::process::download::apply_disposition;
+use crate::process::outline;
 use crate::process::pipeline;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::raw;
@@ -70,7 +71,8 @@ enum Subset {
 
 fn get_page_subset(path: &Path, pages: &[u32]) -> Result<Subset> {
     let mut document = Document::load(path)?;
-    let existing: BTreeSet<u32> = document.get_pages().into_keys().collect();
+    let numbered = document.get_pages();
+    let existing: BTreeSet<u32> = numbered.keys().copied().collect();
 
     let keep: BTreeSet<u32> = pages
         .iter()
@@ -87,6 +89,9 @@ fn get_page_subset(path: &Path, pages: &[u32]) -> Result<Subset> {
     if discard.is_empty() {
         return Ok(Subset::Whole);
     }
+
+    let removed = discard.iter().filter_map(|page| numbered.get(page).copied()).collect();
+    outline::prune(&mut document, &removed);
 
     document.delete_pages(&discard);
     document.prune_objects();
@@ -152,23 +157,23 @@ fn text(status: StatusCode, message: String) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lopdf::{Object, Stream, dictionary};
+    use lopdf::{Object, ObjectId, Stream, dictionary};
 
-    /// Build a minimal `pages`-page PDF on disk.
+    /// Build a minimal `pages`-page PDF on disk, one outline entry per page.
     fn write_pdf(pages: usize) -> tempfile::NamedTempFile {
         let mut document = Document::with_version("1.5");
         let pages_id = document.new_object_id();
+        let outlines_id = document.new_object_id();
 
-        let page_ids: Vec<Object> = (0..pages)
+        let page_ids: Vec<ObjectId> = (0..pages)
             .map(|_| {
                 let contents = document.add_object(Stream::new(dictionary! {}, Vec::new()));
-                let page = document.add_object(dictionary! {
+                document.add_object(dictionary! {
                     "Type" => "Page",
                     "Parent" => pages_id,
                     "Contents" => contents,
                     "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
-                });
-                page.into()
+                })
             })
             .collect();
 
@@ -177,18 +182,78 @@ mod tests {
             .insert(pages_id, Object::Dictionary(dictionary! {
                 "Type" => "Pages",
                 "Count" => pages as i64,
-                "Kids" => page_ids,
+                "Kids" => page_ids.iter().copied().map(Object::Reference).collect::<Vec<_>>(),
+            }));
+
+        let entry_ids: Vec<ObjectId> = page_ids
+            .iter()
+            .enumerate()
+            .map(|(index, page)| {
+                document.add_object(dictionary! {
+                    "Title" => Object::string_literal(format!("page {}", index + 1)),
+                    "Parent" => outlines_id,
+                    "Dest" => vec![Object::Reference(*page), "Fit".into()],
+                })
+            })
+            .collect();
+
+        for (index, id) in entry_ids.iter().enumerate() {
+            let entry = document.get_dictionary_mut(*id).unwrap();
+
+            if index > 0 {
+                entry.set("Prev", Object::Reference(entry_ids[index - 1]));
+            }
+
+            if let Some(next) = entry_ids.get(index + 1) {
+                entry.set("Next", Object::Reference(*next));
+            }
+        }
+
+        document
+            .objects
+            .insert(outlines_id, Object::Dictionary(dictionary! {
+                "Type" => "Outlines",
+                "First" => Object::Reference(entry_ids[0]),
+                "Last" => Object::Reference(entry_ids[pages - 1]),
+                "Count" => pages as i64,
             }));
 
         let catalog = document.add_object(dictionary! {
             "Type" => "Catalog",
             "Pages" => pages_id,
+            "Outlines" => Object::Reference(outlines_id),
         });
         document.trailer.set("Root", catalog);
 
         let file = tempfile::NamedTempFile::new().unwrap();
         document.save_to(&mut std::fs::File::create(file.path()).unwrap()).unwrap();
         file
+    }
+
+    /// Outline entry titles of a saved PDF, in reading order.
+    fn outline_titles(pdf: &[u8]) -> Vec<String> {
+        let document = Document::load_mem(pdf).unwrap();
+
+        let mut current = document
+            .catalog()
+            .and_then(|catalog| catalog.get(b"Outlines"))
+            .and_then(Object::as_reference)
+            .and_then(|id| document.get_dictionary(id))
+            .and_then(|outlines| outlines.get(b"First"))
+            .and_then(Object::as_reference)
+            .ok();
+
+        let mut titles = Vec::new();
+
+        while let Some(id) = current {
+            let entry = document.get_dictionary(id).unwrap();
+            let title = entry.get(b"Title").and_then(Object::as_str).unwrap();
+
+            titles.push(String::from_utf8_lossy(title).into_owned());
+            current = entry.get(b"Next").and_then(Object::as_reference).ok();
+        }
+
+        titles
     }
 
     fn page_count(pdf: &[u8]) -> usize {
@@ -204,6 +269,7 @@ mod tests {
         };
 
         assert_eq!(page_count(&pdf), 2);
+        assert_eq!(outline_titles(&pdf), vec!["page 1", "page 3"]);
     }
 
     #[test]
@@ -234,4 +300,6 @@ mod tests {
             Subset::OutOfRange
         ));
     }
+
+
 }
