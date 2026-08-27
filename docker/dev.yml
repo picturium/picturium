@@ -14,7 +14,7 @@ COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/poppler /usr/share/popple
 COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/mime /usr/share/mime
 COPY --from=lamka02sk/picturium-base:8.18.4 /etc /etc
 
-RUN apt update -y && apt install -y curl gcc && apt install -y --no-install-recommends ffmpeg && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt update -y && apt install -y curl gcc libc6-dev && apt install -y --no-install-recommends ffmpeg && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y

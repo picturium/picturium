@@ -37,6 +37,17 @@ printf '%s\n' \
 vips copy "${work_dir}/data/source.svg" "${work_dir}/data/source.png"
 
 printf '%s\n' \
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' \
+    '<rect width="40" height="20" fill="#ff0000"/>' \
+    '</svg>' > "${work_dir}/red.svg"
+vips copy "${work_dir}/red.svg" "${work_dir}/red.png"
+cp "${work_dir}/data/source.png" "${work_dir}/data/reference.png"
+printf '%s\n' \
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' \
+    '<image href="reference.png" width="40" height="20"/>' \
+    '</svg>' > "${work_dir}/data/referenced.svg"
+
+printf '%s\n' \
     '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' \
     '<rect width="10" height="10" fill="rgba(0,0,0,0)"/>' \
     '</svg>' > "${work_dir}/data/transparent.svg"
@@ -86,8 +97,12 @@ export PICTURIUM__SERVER__HOST="${HOST}"
 export PICTURIUM__SERVER__PORT="${PORT}"
 export PICTURIUM__DATA__DIR="${work_dir}/data"
 export PICTURIUM__CACHE__DIR="${work_dir}/cache"
-export PICTURIUM__CACHE__MEMORY__ENABLED=false
-export PICTURIUM__CACHE__DISK__ENABLED=false
+export PICTURIUM__CACHE__MEMORY__ENABLED=true
+export PICTURIUM__CACHE__MEMORY__CAPACITY=8
+export PICTURIUM__CACHE__MEMORY__ENTRY_LIMIT=1
+export PICTURIUM__CACHE__DISK__ENABLED=true
+export PICTURIUM__CACHE__DISK__LIMIT=32
+export PICTURIUM__SVG__ALLOW_LOCAL_RESOURCES=true
 export PICTURIUM__SECURITY__SIGNATURE_ENABLED=false
 export PICTURIUM__DATA__SERVE=txt
 export PICTURIUM__IMAGE__UPSIZE=false
@@ -319,6 +334,7 @@ request with-exif.jpg 'q=maximum&f=jpeg' "${work_dir}/tuned-baseline.jpg"
 tuned_dir="$(mktemp -d)"
 PICTURIUM__OUTPUT__QUALITY_CURVES__JPEG__MAX=30 \
     PICTURIUM__OUTPUT__QUALITY_CURVES__JPEG__MAXIMUM=0 \
+    PICTURIUM__CACHE__DIR="${tuned_dir}/cache" \
     PICTURIUM__SERVER__PORT=20146 \
     cargo run > "${tuned_dir}/server.log" 2>&1 &
 tuned_pid="$!"
@@ -410,6 +426,45 @@ assert_status source.png 'f=svg' 415
 request source.svg 'w=40&h=20&f=png' "${work_dir}/rasterised.png"
 assert_dimensions "${work_dir}/rasterised.png" 40 20
 assert_pixel "${work_dir}/rasterised.png" 20 10 0 0 255
+
+# Referenced files are intentionally outside the cache keys, so swapping one
+# behind picturium's back is the only way to tell a cache hit from a rerender.
+# `cache` only makes the client redownload; `force` regenerates and replaces
+# what is cached, so the next plain request serves the fresh output.
+render_pdf() {
+    gs -q -dBATCH -dNOPAUSE -sDEVICE=png16m -r72 -sOutputFile="$2" "$1"
+}
+
+request referenced.svg 'f=pdf' "${work_dir}/referenced-blue.pdf"
+cp "${work_dir}/red.png" "${work_dir}/data/reference.png"
+request referenced.svg 'f=pdf&cache=redownload' "${work_dir}/referenced-cached.pdf"
+cmp "${work_dir}/referenced-blue.pdf" "${work_dir}/referenced-cached.pdf"
+
+request referenced.svg 'f=pdf&force=true' "${work_dir}/referenced-forced.pdf"
+render_pdf "${work_dir}/referenced-forced.pdf" "${work_dir}/referenced-forced.png"
+assert_pixel "${work_dir}/referenced-forced.png" 20 10 255 0 0
+[[ "$(header_of referenced.svg 'f=pdf&force=true' cache-control)" == "no-store" ]]
+
+request referenced.svg 'f=pdf&cache=after-force' "${work_dir}/referenced-after-force.pdf"
+render_pdf "${work_dir}/referenced-after-force.pdf" "${work_dir}/referenced-after-force.png"
+assert_pixel "${work_dir}/referenced-after-force.png" 20 10 255 0 0
+echo "  cache redownloads cached SVG output; force replaces it"
+
+# The same swap over the raster response cache: still blue from the cache until
+# force reruns the pipeline, and blue never comes back afterwards.
+cp "${work_dir}/data/source.png" "${work_dir}/data/reference.png"
+request referenced.svg 'w=40&h=20&f=png' "${work_dir}/raster-blue.png"
+assert_pixel "${work_dir}/raster-blue.png" 20 10 0 0 255
+
+cp "${work_dir}/red.png" "${work_dir}/data/reference.png"
+request referenced.svg 'w=40&h=20&f=png' "${work_dir}/raster-cached.png"
+assert_pixel "${work_dir}/raster-cached.png" 20 10 0 0 255
+
+request referenced.svg 'w=40&h=20&f=png&force=true' "${work_dir}/raster-forced.png"
+assert_pixel "${work_dir}/raster-forced.png" 20 10 255 0 0
+request referenced.svg 'w=40&h=20&f=png' "${work_dir}/raster-after-force.png"
+assert_pixel "${work_dir}/raster-after-force.png" 20 10 255 0 0
+echo "  force replaces the cached raster response too"
 
 # --- raw passthrough (data.serve) ------------------------------------------
 # `txt` is allowlisted above, `zip` is not.

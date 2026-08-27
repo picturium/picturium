@@ -1,33 +1,24 @@
-use crate::services::cache::sidecar;
 use anyhow::{Context, Result, anyhow};
+use bytes::Bytes;
 use std::{path::Path, time::Duration};
 use tokio::process::Command;
 use tokio::{task::JoinHandle, time::timeout};
 
-pub(super) async fn convert_to_pdf(
-    source_path: &Path,
-    pdf_path: &str,
-    filter: Option<&str>,
-) -> Result<()> {
-    let pdf_dir = Path::new(pdf_path)
-        .parent()
-        .with_context(|| "Invalid pdf path")?;
-    let produced_pdf = pdf_dir
+pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>) -> Result<Bytes> {
+    let output = tempfile::tempdir().context("failed to create soffice output directory")?;
+    
+    let produced_pdf = output
+        .path()
         .join(
             source_path
                 .file_stem()
-                .with_context(|| format!("Invalid source path: {}", source_path.display()))?,
+                .with_context(|| format!("invalid source path: {}", source_path.display()))?,
         )
         .with_extension("pdf");
+    
     let filter = filter.unwrap_or("pdf");
 
-    println!(
-        "Command: soffice --headless --convert-to {filter} --outdir {} {}",
-        pdf_dir.display(),
-        source_path.display()
-    );
-
-    let mut child = Command::new("soffice")
+    let status = Command::new("soffice")
         .arg("--headless")
         .arg("--nologo")
         .arg("--nodefault")
@@ -35,37 +26,26 @@ pub(super) async fn convert_to_pdf(
         .arg("--convert-to")
         .arg(filter)
         .arg("--outdir")
-        .arg(pdf_dir)
+        .arg(output.path())
         .arg(source_path)
-        .spawn()
-        .with_context(|| "Failed to spawn soffice command")?;
+        .status()
+        .await
+        .context("failed to run soffice command")?;
 
-    match child.wait().await {
-        Ok(status) if status.success() => {
-            tokio::fs::rename(&produced_pdf, pdf_path)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to rename soffice output from {} to {pdf_path}",
-                        produced_pdf.display(),
-                    )
-                })?;
-
-            sidecar::write(pdf_path, source_path).await?;
-            Ok(())
-        }
-        Ok(status) => Err(anyhow!(
+    if !status.success() {
+        return Err(anyhow!(
             "soffice failed with exit code: {:?}",
             status.code()
-        )),
-        Err(err) => Err(err).with_context(|| "Failed to wait on soffice process"),
+        ));
     }
+
+    tokio::fs::read(&produced_pdf)
+        .await
+        .map(Bytes::from)
+        .with_context(|| format!("failed to read soffice output {}", produced_pdf.display()))
 }
 
-pub(super) async fn wait_for_conversion(
-    conversion: &mut JoinHandle<Result<()>>,
-    duration: Duration,
-) -> Result<()> {
+pub(super) async fn wait_for_conversion(conversion: &mut JoinHandle<Result<Bytes>>, duration: Duration) -> Result<Bytes> {
     match timeout(duration, conversion).await {
         Ok(result) => result.context("soffice conversion task failed")?,
         Err(_) => Err(anyhow!(
@@ -78,6 +58,7 @@ pub(super) async fn wait_for_conversion(
 #[cfg(test)]
 mod tests {
     use super::wait_for_conversion;
+    use bytes::Bytes;
     use std::{
         sync::{
             Arc,
@@ -94,7 +75,7 @@ mod tests {
         let mut conversion = tokio::spawn(async move {
             sleep(Duration::from_millis(20)).await;
             task_completed.store(true, Ordering::Release);
-            Ok::<(), anyhow::Error>(())
+            Ok::<_, anyhow::Error>(Bytes::new())
         });
 
         assert!(

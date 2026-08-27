@@ -7,29 +7,69 @@ use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 
 use crate::services::http_cache;
-use crate::{enums::download::Download, enums::input::{get_input_mime, is_gzipped_svg}, process::download::apply_disposition};
+use crate::services::http_cache::Validators;
+use crate::{
+    enums::download::Download,
+    enums::input::{get_input_mime, is_gzipped_svg},
+    process::download::apply_disposition,
+};
 
 /// Serve the original file from the disk
-pub(super) async fn serve(headers: &HeaderMap, path: &Path, download: &Download, download_name: &str, cache_control: &str) -> anyhow::Result<Response> {
+pub(super) async fn serve(
+    headers: &HeaderMap,
+    path: &Path,
+    download: &Download,
+    download_name: &str,
+    cache_control: &str,
+    forced: bool,
+) -> anyhow::Result<Response> {
+    serve_validated(
+        headers,
+        path,
+        download,
+        download_name,
+        cache_control,
+        None,
+        forced,
+    ).await
+}
+
+pub(super) async fn serve_validated(
+    headers: &HeaderMap,
+    path: &Path,
+    download: &Download,
+    download_name: &str,
+    cache_control: &str,
+    validators: Option<&Validators>,
+    forced: bool,
+) -> anyhow::Result<Response> {
     let metadata = tokio::fs::metadata(path).await?;
     let size = metadata.len();
-    let modified = metadata.modified().ok();
+    let file_modified = metadata.modified().ok();
     let mime = get_input_mime(Path::new(download_name));
-    let last_modified = modified.map(httpdate::fmt_http_date);
     
-    let etag = modified.map(|mtime| {
-        let seconds = mtime
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0);
-        format!("\"{seconds}-{size}\"")
-    });
+    let modified = validators.map(Validators::modified).unwrap_or(file_modified);
+    let last_modified = validators
+        .and_then(|validators| validators.last_modified.clone())
+        .or_else(|| modified.map(httpdate::fmt_http_date));
+
+    let etag = validators
+        .map(|validators| validators.etag.clone())
+        .or_else(|| {
+            modified.map(|mtime| {
+                let seconds = mtime
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|duration| duration.as_secs())
+                    .unwrap_or(0);
+                format!("\"{seconds}-{size}\"")
+            })
+        });
 
     // `.svgz` and `.svg.gz` are gzipped SVG served under the plain SVG media type.
     let gzipped = is_gzipped_svg(Path::new(download_name));
     let vary = gzipped.then_some("Accept-Encoding");
-    
-    if http_cache::is_not_modified(headers, etag.as_deref(), modified) {
+
+    if !forced && http_cache::is_not_modified(headers, etag.as_deref(), modified) {
         return Ok(not_modified_response(
             etag.as_deref(),
             last_modified.as_deref(),
@@ -54,7 +94,7 @@ pub(super) async fn serve(headers: &HeaderMap, path: &Path, download: &Download,
     };
 
     let mut file = tokio::fs::File::open(path).await?;
-    
+
     let (status, content_length, content_range) = match range {
         Some((start, end)) => {
             file.seek(SeekFrom::Start(start)).await?;
@@ -78,12 +118,18 @@ pub(super) async fn serve(headers: &HeaderMap, path: &Path, download: &Download,
     if gzipped {
         builder = builder.header(header::CONTENT_ENCODING, "gzip");
     }
-    
+
     if let Some(content_range) = content_range {
         builder = builder.header(header::CONTENT_RANGE, content_range);
     }
 
-    let builder = http_cache::apply(builder, etag.as_deref(), last_modified.as_deref(), cache_control, vary);
+    let builder = http_cache::apply(
+        builder,
+        etag.as_deref(),
+        last_modified.as_deref(),
+        cache_control,
+        vary,
+    );
     let builder = apply_disposition(builder, download, download_name);
 
     Ok(builder.body(body)?)
@@ -118,12 +164,12 @@ fn if_range_validates(value: &str, etag: Option<&str>, modified: Option<std::tim
 
 fn not_modified_response(etag: Option<&str>, last_modified: Option<&str>, mime: &str, cache_control: &str, vary: Option<&str>) -> Response {
     http_cache::apply(
-        Response::builder().status(StatusCode::NOT_MODIFIED),
-        etag,
-        last_modified,
-        cache_control,
-        vary,
-    )
+            Response::builder().status(StatusCode::NOT_MODIFIED),
+            etag,
+            last_modified,
+            cache_control,
+            vary,
+        )
         .header(header::CONTENT_TYPE, mime)
         .header(header::ACCEPT_RANGES, "bytes")
         .body(Body::empty())
@@ -132,12 +178,12 @@ fn not_modified_response(etag: Option<&str>, last_modified: Option<&str>, mime: 
 
 fn range_not_satisfiable_response(size: u64, etag: Option<&str>, last_modified: Option<&str>, mime: &str, cache_control: &str, vary: Option<&str>) -> Response {
     http_cache::apply(
-        Response::builder().status(StatusCode::RANGE_NOT_SATISFIABLE),
-        etag,
-        last_modified,
-        cache_control,
-        vary,
-    )
+            Response::builder().status(StatusCode::RANGE_NOT_SATISFIABLE),
+            etag,
+            last_modified,
+            cache_control,
+            vary,
+        )
         .header(header::CONTENT_TYPE, mime)
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CONTENT_RANGE, format!("bytes */{size}"))

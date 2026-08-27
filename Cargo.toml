@@ -18,6 +18,8 @@ anyhow = "1.0"
 picturium-libvips = { path = "../picturium-libvips" }
 strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
 base64 = "0.23.1"
+bytes = "1"
+foyer = "=0.22.3"
 scopeguard = "1.2.0"
 hmac = "0.13.0"
 sha2 = "0.11.0"
@@ -27,6 +29,8 @@ lopdf = { version = "0.44.0", default-features = false }
 krilla = { version = "0.8", default-features = false, features = ["raster-images"] }
 krilla-svg = "0.8"
 usvg = "0.47"
-
-[dev-dependencies]
 tempfile = "3"
+
+[patch.crates-io]
+# Unreleased fix for fastant TSC calibration overflow in containers.
+fastant = { git = "https://github.com/fast/fastant", rev = "164fc07176f59072c47ff51c46381a3edd8e970c" }

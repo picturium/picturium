@@ -2,7 +2,6 @@ use crate::config::SharedConfig;
 use crate::enums::autorot::Autorot;
 use crate::enums::download::Download;
 use crate::enums::dpi::Dpi;
-use crate::enums::force::Force;
 use crate::enums::image_extend::ImageExtend;
 use crate::enums::image_fit::ImageFit;
 use crate::enums::image_gravity::ImageGravity;
@@ -11,6 +10,7 @@ use crate::enums::original::Original;
 use crate::enums::output_format::OutputFormat;
 use crate::enums::output_quality::OutputQuality;
 use crate::enums::upsize::Upsize;
+use crate::params::RequestParams;
 use crate::params::animate::Animate;
 use crate::params::aspect_ratio::AspectRatio;
 use crate::params::background::Background;
@@ -19,7 +19,6 @@ use crate::params::filter::Filter;
 use crate::params::limits::Limits;
 use crate::params::metadata::Metadata;
 use crate::params::padding::Padding;
-use crate::params::RequestParams;
 use crate::params::rotate::Rotate;
 use crate::params::time::Time;
 use crate::params::watermark::Watermark;
@@ -29,7 +28,6 @@ const DEFAULT_SCALE: f32 = 1.0;
 
 #[derive(Debug)]
 pub struct Parameters {
-    pub force: Force,
     pub width: Option<u16>,
     pub height: Option<u16>,
     pub aspect_ratio: AspectRatio,
@@ -71,9 +69,9 @@ impl Parameters {
 
         // `thumb=p:` is deprecated; new `page`|`pages` parameter takes priority
         let pages = params.pages.map(|pages| pages.0).or_else(|| params.thumbnail.and_then(|thumbnail| thumbnail.pages));
+        let _cache_busters = (params.cache, params.force);
 
         Self {
-            force: params.force.unwrap_or_default(),
             width: params.width,
             height: params.height,
             aspect_ratio: params.aspect_ratio.unwrap_or_default(),

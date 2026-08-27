@@ -78,6 +78,7 @@ pub struct RequestParams {
     pub background: Option<Background>,
     pub crop: Option<Crop>,
     pub filter: Option<Filter>,
+    pub cache: Option<String>,
     pub download: Option<Download>,
     pub original: Option<Original>,
     #[serde(alias = "q")]
@@ -102,5 +103,4 @@ pub struct RequestParams {
     pub time: Option<Time>,
     pub watermark: Option<Watermark>,
 }
-
 

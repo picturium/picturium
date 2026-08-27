@@ -1,9 +1,9 @@
 # URL Parameters
 
-- [ ] Caching
-  - [ ] Memory cache
-  - [ ] Disk cache
-  - [ ] Automatic cleanup
+- [x] Caching
+  - [x] Memory cache (bounded by entry count and per-entry size)
+  - [x] Disk cache (bounded effective capacity; oversized / evicted memory values)
+  - [x] Automatic cleanup (capacity-based eviction and reclamation)
 - [x] URL token verification (signature)
 
 Input formats // from InputFormat enum
@@ -56,7 +56,8 @@ Output formats
 - [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
 - [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
 - [x] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
-- [x] `cache` (any): cache buster (timestamp or random string)
+- [x] `cache` (any): browser / CDN cache buster (timestamp or random string); does not regenerate server-cached output
+- [x] `force` (bool): skip the server caches, regenerate, and replace the cached entries so later requests without `force` serve the fresh output; responds with `Cache-Control: no-store` and never returns 304
 - [x] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
 - [x] `original` (bool): return original image instead of processed one [default: false]
 - [x] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
@@ -67,7 +68,7 @@ Output formats
     - `f=pdf` requires a PDF, office document or SVG source, otherwise 415; an office document is converted with LibreOffice first, an SVG is converted to a single-page vector PDF
       - an SVG's `<image>` elements are embedded only when they are inlined as `data:` URIs; file references are followed only if `svg.allow_local_resources` is on, and even then only inside the data directory
     - `f=pdf` with `pages` returns a PDF of exactly those pages (`pages=1,4` gives two pages, not 4); pages past the end are ignored, a selection with none of them is 400
-    - sizing, quality, filter and metadata parameters do not apply to document responses, the same as under `original`; `dpi` and `style` are the exception, they apply to an SVG converted to PDF
+    - sizing, quality, filter, and metadata parameters do not apply to document responses, the same as under `original`; `dpi` and `style` are the exception, they apply to an SVG converted to PDF
   - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
 - [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
 - [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most 1000 pages; under `f=pdf` it selects the pages of the returned PDF instead

@@ -1,16 +1,15 @@
 use crate::enums::dpi::Dpi;
+use crate::process::pipeline::ResolvedSource;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::source::Source;
-use crate::services::cache::path_generator::generate_intermediate_path;
-use crate::services::cache::sidecar;
+use crate::services::cache::source_key;
 use anyhow::{Context, Result, anyhow};
+use bytes::Bytes;
 use krilla::Document;
 use krilla::geom::Size;
 use krilla::page::PageSettings;
 use krilla_svg::{SurfaceExt, SvgSettings};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use usvg::fontdb;
 
@@ -21,40 +20,40 @@ static FONTS: LazyLock<Arc<fontdb::Database>> = LazyLock::new(|| {
 });
 
 /// Converts an SVG source into a single-page vector PDF
-pub async fn process(request: &PipelineRequest<'_>) -> Result<String> {
-    let source_path = &request.source.path;
+pub async fn process(request: &PipelineRequest<'_>) -> Result<ResolvedSource> {
+    let source_path = request.source.path.clone();
     let style = request.parameters.style.clone();
-    let resources = local_resources(request);
 
     let dpi = match request.parameters.dpi {
         Dpi::Auto => request.state.config.svg.load_dpi,
         Dpi::Value(value) => value as u32,
     };
 
-    let variant = match &style {
-        Some(style) => format!("{dpi}dpi-{}", hash_style(style)),
-        None => format!("{dpi}dpi"),
-    };
+    let resources = local_resources(request);
+    let render = move || async move { render(source_path, dpi, style, resources).await };
+    
+    let key = source_key(
+        "svg:pdf",
+        &request.state.etag_seed,
+        &request.source.path,
+        &format!("{dpi}\0{:?}", request.parameters.style),
+    ).await?;
+    
+    let pdf = request.state.cache.resolve(key, request.forced, render).await?;
 
-    let pdf_path = generate_intermediate_path(request, source_path, &format!("{variant}.pdf"));
+    ResolvedSource::materialize(&pdf, ".pdf").await
+}
 
-    if sidecar::is_valid(&pdf_path, source_path).await {
-        return Ok(pdf_path);
-    }
-
+async fn render(
+    source_path: PathBuf,
+    dpi: u32,
+    style: Option<String>,
+    resources: Option<LocalResources>,
+) -> Result<Bytes> {
     let data = tokio::fs::read(source_path).await?;
-    let pdf =
-        tokio::task::spawn_blocking(move || convert(&data, dpi as f32, style, resources)).await??;
-
-    let pdf_dir = Path::new(&pdf_path)
-        .parent()
-        .with_context(|| "Invalid pdf path")?;
-
-    tokio::fs::create_dir_all(pdf_dir).await?;
-    save_pdf(&pdf_path, &pdf).await?;
-    sidecar::write(&pdf_path, source_path).await?;
-
-    Ok(pdf_path)
+    
+    tokio::task::spawn_blocking(move || convert(&data, dpi as f32, style, resources)).await?
+        .map(Bytes::from)
 }
 
 /// The directory an SVG may pull `<image href="...">` files from, and the data
@@ -79,7 +78,10 @@ fn local_resources(request: &PipelineRequest<'_>) -> Option<LocalResources> {
 fn resolve_href(resources: Option<LocalResources>) -> usvg::ImageHrefStringResolverFn<'static> {
     let Some(resources) = resources else {
         return Box::new(|href, _| {
-            tracing::debug!("Refusing to load \"{href}\" referenced by an SVG: svg.allow_local_resources is off");
+            tracing::debug!(
+                "Refusing to load \"{href}\" referenced by an SVG: svg.allow_local_resources is off"
+            );
+            
             None
         });
     };
@@ -90,7 +92,10 @@ fn resolve_href(resources: Option<LocalResources>) -> usvg::ImageHrefStringResol
         let candidate = resources.source_dir.join(href);
 
         let Some(path) = Source::get_path(&candidate.to_string_lossy(), &resources.data_dir) else {
-            tracing::debug!("Refusing to load \"{href}\" referenced by an SVG: outside the data directory");
+            tracing::debug!(
+                "Refusing to load \"{href}\" referenced by an SVG: outside the data directory"
+            );
+            
             return None;
         };
 
@@ -136,21 +141,6 @@ fn convert(
     document.finish().map_err(|e| anyhow!("{e:?}"))
 }
 
-fn hash_style(style: &str) -> String {
-    let mut hasher = DefaultHasher::new();
-    style.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
-}
-
-async fn save_pdf(pdf_path: &str, pdf: &[u8]) -> Result<()> {
-    let temporary_path = format!("{pdf_path}.{}.tmp", std::process::id());
-
-    tokio::fs::write(&temporary_path, pdf).await?;
-    tokio::fs::rename(&temporary_path, pdf_path).await?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{LocalResources, convert};
@@ -190,7 +180,13 @@ mod tests {
     #[test]
     fn a_stylesheet_changes_the_output() {
         let plain = convert(SVG.as_bytes(), 72.0, None, None).unwrap();
-        let styled = convert(SVG.as_bytes(), 72.0, Some("rect { fill: red }".into()), None).unwrap();
+        let styled = convert(
+            SVG.as_bytes(),
+            72.0,
+            Some("rect { fill: red }".into()),
+            None,
+        )
+        .unwrap();
 
         assert_ne!(plain, styled);
     }
@@ -201,7 +197,7 @@ mod tests {
         0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
         0x77, 0x53, 0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8,
         0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92, 0xef, 0x00, 0x00, 0x00,
-        0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+        0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
     ];
 
     fn svg_referencing(href: &str) -> String {
@@ -220,7 +216,11 @@ mod tests {
             .values()
             .filter_map(|object| object.as_stream().ok())
             .any(|stream| {
-                stream.dict.get(b"Subtype").and_then(Object::as_name).is_ok_and(|name| name == b"Image")
+                stream
+                    .dict
+                    .get(b"Subtype")
+                    .and_then(Object::as_name)
+                    .is_ok_and(|name| name == b"Image")
             })
     }
 

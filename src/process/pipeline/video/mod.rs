@@ -1,60 +1,62 @@
 mod extraction;
 
 use crate::params::parsed::Parameters;
+use crate::process::pipeline::ResolvedSource;
 use crate::process::pipeline::request::PipelineRequest;
-use crate::services::cache::path_generator::generate_intermediate_path;
-use crate::services::cache::sidecar;
+use crate::services::cache::source_key;
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use std::path::Path;
 use std::time::Duration;
 
 use self::extraction::{Frame, extract_frame};
-use super::lock::acquire_conversion_lock;
 
-/// Fallback frame - video start
 const START: Frame = Frame::Index(0);
 
-pub async fn process(request: &PipelineRequest<'_>) -> Result<String> {
-    let source_path = &request.source.path;
+pub async fn process(request: &PipelineRequest<'_>) -> Result<ResolvedSource> {
+    let source_path = request.source.path.clone();
     let config = &request.state.config.video;
     let requested = resolve_frame(request.parameters);
     let frame = requested.clone().unwrap_or_else(|| Frame::Time(config.default_time.clone()));
-    let frame_path = generate_intermediate_path(request, source_path, &format!("{}.png", frame.variant()));
-
-    if sidecar::is_valid(&frame_path, source_path).await {
-        return Ok(frame_path);
-    }
-
-    let frame_dir = Path::new(&frame_path).parent().with_context(|| "Invalid frame path")?;
-
-    tokio::fs::create_dir_all(frame_dir).await?;
-
-    let _extraction_lock = acquire_conversion_lock(&frame_path).await?;
-
-    if sidecar::is_valid(&frame_path, source_path).await {
-        return Ok(frame_path);
-    }
-
-    let temporary_path = format!("{frame_path}.tmp");
-
+    let variant = frame.variant();
+    
+    let key = source_key(
+        "video:frame",
+        &request.state.etag_seed,
+        &source_path,
+        &variant,
+    ).await?;
+    
     let extraction_timeout = Duration::from_secs(config.extraction_timeout);
-    let mut extracted =
-        extract_frame(source_path, &temporary_path, &frame, extraction_timeout).await;
+    let extract = move || async move {
+        match extract(&source_path, &frame, extraction_timeout).await {
+            Ok(value) => Ok(value),
+            Err(_) if requested.is_none() && frame != START => {
+                extract(&source_path, &START, extraction_timeout).await
+            }
+            Err(error) => Err(error),
+        }
+    };
+    
+    let value = request.state.cache.resolve(key, request.forced, extract).await?;
 
-    if extracted.is_err() && requested.is_none() && frame != START {
-        tokio::fs::remove_file(&temporary_path).await.ok();
-        extracted = extract_frame(source_path, &temporary_path, &START, extraction_timeout).await;
-    }
+    ResolvedSource::materialize(&value, ".png").await
+}
 
-    if let Err(err) = extracted {
-        tokio::fs::remove_file(&temporary_path).await.ok();
-        return Err(err);
-    }
-
-    tokio::fs::rename(&temporary_path, &frame_path).await?;
-    sidecar::write(&frame_path, source_path).await?;
-
-    Ok(frame_path)
+async fn extract(source_path: &Path, frame: &Frame, timeout: Duration) -> Result<Bytes> {
+    let output = tempfile::Builder::new()
+        .prefix("picturium-frame-")
+        .suffix(".png")
+        .tempfile()
+        .context("failed to create temporary video frame")?;
+    
+    let path = output.path().to_string_lossy().into_owned();
+    extract_frame(source_path, &path, frame, timeout).await?;
+    
+    tokio::fs::read(output.path())
+        .await
+        .map(Bytes::from)
+        .context("failed to read extracted video frame")
 }
 
 fn resolve_frame(parameters: &Parameters) -> Option<Frame> {

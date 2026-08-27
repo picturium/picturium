@@ -1,12 +1,14 @@
+use crate::config::Config;
 use crate::enums::output_format::OutputFormat;
 use crate::params::parsed::Parameters;
+use crate::services::cache;
 use axum::http::response::Builder as ResponseBuilder;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
 use sha2::{Digest, Sha256};
 use std::fs::Metadata;
-use std::time::{SystemTime, UNIX_EPOCH};
-use crate::config::Config;
+use std::path::Path;
+use std::time::SystemTime;
 
 pub const NO_STORE: &str = "no-store";
 
@@ -21,34 +23,37 @@ pub fn seed(config: &Config) -> String {
 pub struct Validators {
     pub etag: String,
     pub last_modified: Option<String>,
+    pub cache_key: String,
     modified: Option<SystemTime>,
 }
 
 impl Validators {
-    pub fn new(seed: &str, source: &Metadata, parameters: &Parameters, format: &OutputFormat) -> Self {
+    pub fn new(
+        seed: &str,
+        source_path: &Path,
+        source: &Metadata,
+        parameters: &Parameters,
+        format: &OutputFormat,
+    ) -> Self {
         let modified = source.modified().ok();
-
-        let nanos = modified
-            .and_then(|mtime| mtime.duration_since(UNIX_EPOCH).ok())
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0);
-
-        let mut hasher = Sha256::new();
-        hasher.update(seed.as_bytes());
-        hasher.update(nanos.to_le_bytes());
-        hasher.update(source.len().to_le_bytes());
-        hasher.update(format!("{parameters:?}").as_bytes());
-        hasher.update(format!("{format:?}").as_bytes());
+        let variant = format!("{parameters:?}\0{format:?}");
+        let cache_key = cache::key("response", seed, source_path, source, &variant);
+        let digest = cache_key.rsplit(':').next().unwrap_or(&cache_key);
 
         Self {
-            etag: format!("\"{}\"", hex::encode(&hasher.finalize()[..8])),
+            etag: format!("\"{}\"", &digest[..16]),
             last_modified: modified.map(httpdate::fmt_http_date),
+            cache_key,
             modified,
         }
     }
 
     pub fn is_not_modified(&self, headers: &HeaderMap) -> bool {
         is_not_modified(headers, Some(&self.etag), self.modified)
+    }
+
+    pub fn modified(&self) -> Option<SystemTime> {
+        self.modified
     }
 
     pub fn apply(&self, builder: ResponseBuilder, cache_control: &str, vary: Option<&str>) -> ResponseBuilder {
@@ -123,7 +128,7 @@ mod tests {
     }
 
     fn etag(seed: &str, parameters: &Parameters, format: &OutputFormat) -> String {
-        Validators::new(seed, &metadata(), parameters, format).etag
+        Validators::new(seed, Path::new(file!()), &metadata(), parameters, format).etag
     }
 
     fn headers(name: header::HeaderName, value: &str) -> HeaderMap {
@@ -154,6 +159,40 @@ mod tests {
         resized.width = Some(400);
 
         assert_ne!(unchanged, etag("seed", &resized, &OutputFormat::Webp));
+    }
+
+    #[test]
+    fn the_browser_cache_buster_does_not_change_the_server_etag() {
+        let unchanged = parameters();
+        let busted = Parameters::new(
+            &Arc::new(Config::default()),
+            RequestParams {
+                cache: Some("new".into()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            etag("seed", &unchanged, &OutputFormat::Webp),
+            etag("seed", &busted, &OutputFormat::Webp)
+        );
+    }
+
+    #[test]
+    fn forcing_a_refresh_does_not_change_the_server_etag() {
+        let unchanged = parameters();
+        let forced = Parameters::new(
+            &Arc::new(Config::default()),
+            RequestParams {
+                force: Some(crate::enums::force::Force::True),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            etag("seed", &unchanged, &OutputFormat::Webp),
+            etag("seed", &forced, &OutputFormat::Webp)
+        );
     }
 
     #[test]
@@ -194,7 +233,11 @@ mod tests {
             httpdate::fmt_http_date(modified).parse().unwrap(),
         );
 
-        assert!(!is_not_modified(&headers, Some("\"fresh\""), Some(modified)));
+        assert!(!is_not_modified(
+            &headers,
+            Some("\"fresh\""),
+            Some(modified)
+        ));
     }
 
     #[test]

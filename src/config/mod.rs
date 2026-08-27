@@ -82,7 +82,8 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
-        self.output.validate()
+        self.output.validate()?;
+        self.cache.validate()
     }
 }
 

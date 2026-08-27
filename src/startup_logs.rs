@@ -59,6 +59,17 @@ pub fn  print_startup_logs(config: &SharedConfig, state: &AppState) {
     info!("  Server: {}", config.server.get_address());
     info!("  Data directory: {}", config.data.dir);
     info!("  Cache directory: {}", config.cache.dir);
+    info!(
+        "  Memory cache: {} ({} entries, {} MiB per entry)",
+        config.cache.memory.enabled,
+        config.cache.memory.capacity,
+        config.cache.memory.entry_limit
+    );
+    info!(
+        "  Disk cache: {} ({} MiB effective capacity)",
+        config.cache.disk.enabled,
+        config.cache.disk.limit
+    );
     info!("  CORS origins: {}", config.cors.allowed_origins.join(", "));
     info!("  Signature verification: {}", config.security.signature_enabled);
     info!("  Vips debug: {}", config.vips.debug);

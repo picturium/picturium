@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
     let config = Arc::new(Config::load()?);
     setup_tracing(&config.server.log_level);
 
-    let state = AppState::new(config.clone());
+    let state = AppState::new(config.clone()).await?;
 
     print_startup_logs(&config, &state);
 

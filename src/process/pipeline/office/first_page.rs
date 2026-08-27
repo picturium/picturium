@@ -1,82 +1,47 @@
 use super::conversion::{convert_to_pdf, wait_for_conversion};
-use super::super::lock::{acquire_conversion_lock, try_acquire_conversion_lock};
 use super::spawn_full_conversion;
 use crate::enums::input::{InputFormat, OfficeInputFormat};
 use crate::enums::output_format::OutputFormat;
+use crate::process::pipeline::ResolvedSource;
 use crate::process::pipeline::request::PipelineRequest;
-use crate::services::cache::path_generator::generate_intermediate_path;
-use crate::services::cache::sidecar;
-use anyhow::{Context, Result, anyhow};
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    time::Duration,
-};
-use tracing::error;
+use crate::services::cache::source_key;
+use anyhow::{Result, anyhow};
+use std::{path::PathBuf, time::Duration};
 
-const PDF_SUFFIX: &str = "first-page.pdf";
 const PDF_FILTER_DATA: &str = r#"{"PageRange":{"type":"string","value":"1"}}"#;
 
 pub(super) async fn process(
-    source_path: &PathBuf,
-    full_pdf_path: &str,
+    source_path: PathBuf,
+    full_key: String,
     duration: Duration,
     request: &PipelineRequest<'_>,
-) -> Result<String> {
-    let first_page_pdf_path = pdf_path(request, source_path);
+) -> Result<ResolvedSource> {
+    let forced = request.forced;
 
-    if sidecar::is_valid(&first_page_pdf_path, source_path).await {
-        start_full_conversion(
-            source_path.to_owned(),
-            full_pdf_path.to_owned(),
-            first_page_pdf_path.clone(),
-        )
-        .await?;
-        return Ok(first_page_pdf_path);
+    if !forced && let Some(pdf) = request.state.cache.get(&full_key).await {
+        return ResolvedSource::materialize(&pdf, ".pdf").await;
     }
 
-    let first_page_pdf_dir = Path::new(&first_page_pdf_path)
-        .parent()
-        .with_context(|| "Invalid first-page pdf path")?;
+    let first_key = source_key("office:first", &request.state.etag_seed, &source_path, "").await?;
+    let filter = pdf_filter(&request.source.format)?;
+    let first_source = source_path.clone();
+    let cache = request.state.cache.clone();
+    let full_cache = request.state.cache.clone();
+    
+    let mut conversion = tokio::spawn(async move {
+        let convert = move || async move { convert_to_pdf(&first_source, Some(&filter)).await };
+        let result = cache.resolve(first_key, forced, convert).await;
 
-    tokio::fs::create_dir_all(first_page_pdf_dir).await?;
+        if result.is_ok() {
+            spawn_full_conversion(full_cache, full_key, source_path, forced);
+        }
 
-    let _first_page_conversion_lock = acquire_conversion_lock(&first_page_pdf_path).await?;
+        result
+    });
+    
+    let pdf = wait_for_conversion(&mut conversion, duration).await?;
 
-    if sidecar::is_valid(full_pdf_path, source_path).await {
-        return Ok(full_pdf_path.to_owned());
-    }
-
-    if sidecar::is_valid(&first_page_pdf_path, source_path).await {
-        start_full_conversion(
-            source_path.to_owned(),
-            full_pdf_path.to_owned(),
-            first_page_pdf_path.clone(),
-        )
-        .await?;
-        return Ok(first_page_pdf_path);
-    }
-
-    let full_conversion_lock = match try_acquire_conversion_lock(full_pdf_path).await? {
-        Some(lock) => lock,
-        None => acquire_conversion_lock(full_pdf_path).await?,
-    };
-
-    if sidecar::is_valid(full_pdf_path, source_path).await {
-        return Ok(full_pdf_path.to_owned());
-    }
-
-    let mut conversion = spawn_first_page_conversion(
-        source_path.to_owned(),
-        first_page_pdf_path.clone(),
-        full_pdf_path.to_owned(),
-        pdf_filter(request)?,
-        _first_page_conversion_lock,
-        full_conversion_lock,
-    );
-    wait_for_conversion(&mut conversion, duration).await?;
-
-    Ok(first_page_pdf_path)
+    ResolvedSource::materialize(&pdf, ".pdf").await
 }
 
 pub(super) fn is_requested(pages: &Option<Vec<u32>>, output_format: &OutputFormat) -> bool {
@@ -86,25 +51,8 @@ pub(super) fn is_requested(pages: &Option<Vec<u32>>, output_format: &OutputForma
     }
 }
 
-pub(super) fn pdf_path(request: &PipelineRequest<'_>, source_path: &PathBuf) -> String {
-    generate_intermediate_path(request, source_path, PDF_SUFFIX)
-}
-
-pub(super) async fn remove_pdf(first_page_pdf_path: &str) {
-    for path in [
-        first_page_pdf_path.to_owned(),
-        sidecar::sidecar_path(first_page_pdf_path),
-    ] {
-        match tokio::fs::remove_file(&path).await {
-            Ok(()) => {}
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-            Err(err) => error!("failed to remove temporary first-page pdf {path}: {err}"),
-        }
-    }
-}
-
-fn pdf_filter(request: &PipelineRequest<'_>) -> Result<String> {
-    let filter_name = match request.source.format {
+fn pdf_filter(input_format: &InputFormat) -> Result<String> {
+    let filter_name = match input_format {
         InputFormat::Office(OfficeInputFormat::Doc) => "writer_pdf_Export",
         InputFormat::Office(OfficeInputFormat::Ppt) => "impress_pdf_Export",
         InputFormat::Office(OfficeInputFormat::Xls) => "calc_pdf_Export",
@@ -112,50 +60,6 @@ fn pdf_filter(request: &PipelineRequest<'_>) -> Result<String> {
     };
 
     Ok(format!("pdf:{filter_name}:{PDF_FILTER_DATA}"))
-}
-
-async fn start_full_conversion(
-    source_path: PathBuf,
-    pdf_path: String,
-    first_page_pdf_path: String,
-) -> Result<()> {
-    if let Some(lock) = try_acquire_conversion_lock(&pdf_path).await? {
-        spawn_full_conversion(source_path, pdf_path, first_page_pdf_path, lock);
-    }
-
-    Ok(())
-}
-
-fn spawn_first_page_conversion(
-    source_path: PathBuf,
-    first_page_pdf_path: String,
-    full_pdf_path: String,
-    filter: String,
-    first_page_conversion_lock: File,
-    conversion_lock: File,
-) -> tokio::task::JoinHandle<Result<()>> {
-    tokio::spawn(async move {
-        let _first_page_conversion_lock = first_page_conversion_lock;
-        let result = async {
-            convert_to_pdf(&source_path, &first_page_pdf_path, Some(&filter)).await?;
-
-            spawn_full_conversion(
-                source_path,
-                full_pdf_path,
-                first_page_pdf_path,
-                conversion_lock,
-            );
-
-            Ok(())
-        }
-        .await;
-
-        if let Err(err) = &result {
-            error!("background first-page soffice conversion failed: {err:#}");
-        }
-
-        result
-    })
 }
 
 #[cfg(test)]

@@ -2,13 +2,14 @@ use anyhow::{Result, anyhow};
 use axum::body::Body;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use bytes::Bytes;
 use lopdf::Document;
 use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::enums::download::Download;
 use crate::enums::input::{InputFormat, VipsInputFormat};
-use crate::enums::output_format::{OutputFormat, get_output_mime, get_output_extension};
+use crate::enums::output_format::{OutputFormat, get_output_extension, get_output_mime};
 use crate::process::download::apply_disposition;
 use crate::process::outline;
 use crate::process::pipeline;
@@ -19,13 +20,13 @@ use crate::services::http_cache::{self, Validators};
 /// Serve PDF and SVG files
 pub(super) async fn serve(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
     match request.output_format {
-        OutputFormat::Svg => serve_svg(headers, request, cache_control).await,
+        OutputFormat::Svg => serve_svg(headers, request, validators, cache_control).await,
         OutputFormat::Pdf => serve_pdf(headers, request, validators, cache_control).await,
         ref format => Err(anyhow!("{format:?} is not a document format")),
     }
 }
 
-async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>, cache_control: &str) -> Result<Response> {
+async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
     if !matches!(request.source.format, InputFormat::Vips(VipsInputFormat::Svg)) {
         return Ok(unsupported(&OutputFormat::Svg, request));
     }
@@ -37,11 +38,19 @@ async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>, cache_con
         .and_then(|name| name.to_str())
         .unwrap_or("image.svg");
 
-    raw::serve(headers, &request.source.path, &request.parameters.download, name, cache_control).await
+    raw::serve_validated(
+        headers,
+        &request.source.path,
+        &request.parameters.download,
+        name,
+        cache_control,
+        validators,
+        request.forced,
+    ).await
 }
 
 async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
-    let path = match request.source.format {
+    let resolved = match request.source.format {
         InputFormat::Vips(VipsInputFormat::Pdf) | InputFormat::Office(_) => {
             pipeline::resolve_source_path(request).await?
         }
@@ -49,16 +58,48 @@ async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validator
         _ => return Ok(unsupported(&OutputFormat::Pdf, request)),
     };
 
-    let path = Path::new(&path);
+    let path = resolved.path();
     let name = get_pdf_name(request);
 
     let Some(pages) = request.parameters.pages.as_deref() else {
-        return raw::serve(headers, path, &request.parameters.download, &name, cache_control).await;
+        return raw::serve_validated(
+            headers,
+            path,
+            &request.parameters.download,
+            &name,
+            cache_control,
+            validators,
+            request.forced,
+        ).await;
     };
 
     match tokio::task::block_in_place(|| get_page_subset(path, pages))? {
-        Subset::Whole => raw::serve(headers, path, &request.parameters.download, &name, cache_control).await,
-        Subset::Pages(pdf) => Ok(respond(pdf, &request.parameters.download, &name, validators, cache_control)),
+        Subset::Whole => {
+            raw::serve_validated(
+                headers,
+                path,
+                &request.parameters.download,
+                &name,
+                cache_control,
+                validators,
+                request.forced,
+            ).await
+        }
+        Subset::Pages(pdf) => {
+            let pdf = Bytes::from(pdf);
+
+            if let Some(validators) = validators {
+                request.state.cache.insert(validators.cache_key.clone(), pdf.clone());
+            }
+
+            Ok(respond(
+                pdf,
+                &request.parameters.download,
+                &name,
+                validators,
+                cache_control,
+            ))
+        }
         Subset::OutOfRange => Ok(out_of_range(pages)),
     }
 }
@@ -113,11 +154,11 @@ fn get_pdf_name(request: &PipelineRequest<'_>) -> String {
     format!("{stem}.pdf")
 }
 
-fn respond(pdf: Vec<u8>, download: &Download, name: &str, validators: Option<&Validators>, cache_control: &str) -> Response {
+fn respond(pdf: Bytes, download: &Download, name: &str, validators: Option<&Validators>, cache_control: &str) -> Response {
     let builder = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", get_output_mime(&OutputFormat::Pdf));
-    
+
     let builder = match validators {
         Some(validators) => validators.apply(builder, cache_control, None),
         None => http_cache::apply(builder, None, None, cache_control, None),
@@ -133,7 +174,8 @@ fn unsupported(format: &OutputFormat, request: &PipelineRequest<'_>) -> Response
         StatusCode::UNSUPPORTED_MEDIA_TYPE,
         format!(
             "Cannot produce {:?} from {:?}",
-            get_output_extension(format), request.source.format.to_string()
+            get_output_extension(format),
+            request.source.format.to_string()
         ),
     )
 }
@@ -177,13 +219,14 @@ mod tests {
             })
             .collect();
 
-        document
-            .objects
-            .insert(pages_id, Object::Dictionary(dictionary! {
+        document.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
                 "Type" => "Pages",
                 "Count" => pages as i64,
                 "Kids" => page_ids.iter().copied().map(Object::Reference).collect::<Vec<_>>(),
-            }));
+            }),
+        );
 
         let entry_ids: Vec<ObjectId> = page_ids
             .iter()
@@ -209,14 +252,15 @@ mod tests {
             }
         }
 
-        document
-            .objects
-            .insert(outlines_id, Object::Dictionary(dictionary! {
+        document.objects.insert(
+            outlines_id,
+            Object::Dictionary(dictionary! {
                 "Type" => "Outlines",
                 "First" => Object::Reference(entry_ids[0]),
                 "Last" => Object::Reference(entry_ids[pages - 1]),
                 "Count" => pages as i64,
-            }));
+            }),
+        );
 
         let catalog = document.add_object(dictionary! {
             "Type" => "Catalog",
@@ -227,6 +271,7 @@ mod tests {
 
         let file = tempfile::NamedTempFile::new().unwrap();
         document.save_to(&mut std::fs::File::create(file.path()).unwrap()).unwrap();
+        
         file
     }
 
@@ -300,6 +345,4 @@ mod tests {
             Subset::OutOfRange
         ));
     }
-
-
 }

@@ -13,6 +13,7 @@ pub struct PipelineRequest<'a> {
     pub state: &'a AppState,
     pub source: &'a mut Source,
     pub parameters: &'a Parameters,
+    pub forced: bool,
     pub input_format: VipsInputFormat,
     pub intermediate_format: Option<VipsInputFormat>,
     pub output_format: OutputFormat,
@@ -24,6 +25,7 @@ impl<'a> PipelineRequest<'a> {
         state: &'a AppState,
         source: &'a mut Source,
         parameters: &'a Parameters,
+        forced: bool,
     ) -> Self {
         let intermediate_format = resolve_intermediate_format(source);
         let input_format = resolve_input_format(source, intermediate_format);
@@ -32,6 +34,7 @@ impl<'a> PipelineRequest<'a> {
             state,
             source,
             parameters,
+            forced,
             input_format,
             intermediate_format,
             output_format: resolve_output_format(&headers, &state, &parameters),

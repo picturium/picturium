@@ -56,7 +56,8 @@ serve = []
 
 
 [cache]
-# Cache directory [default: cache]
+# Cache directory. A directory may be owned by only one Picturium process.
+# [default: cache]
 dir = "cache"
 # `Cache-Control` sent with every successful response, verbatim.
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control
@@ -67,12 +68,16 @@ cache_control = "public, max-age=604800, must-revalidate"
 enabled = true
 # Maximum number of cache entries [default: 1000]
 capacity = 1000
-# Maximum size of a single cache entry in MB [default: 2]
+# Maximum size of a single memory entry in MiB. Larger values go directly to
+# disk when it is enabled, or are served without caching. [default: 2]
 entry_limit = 2
 
 [cache.disk]
 enabled = true
-# Maximum _effective_ size of disk cache in MB [default: 1024]
+# Maximum effective disk cache size in MiB across generated responses and
+# Office, SVG and video intermediates. Foyer evicts/reclaims entries
+# automatically. A single disk entry is limited to just under 16 MiB.
+# [default: 1024]
 limit = 1024
 
 
@@ -88,6 +93,8 @@ load_dpi = 72
 # directory: absolute paths and `..` traversal are rejected, the same check requested
 # files go through. Leave it off if the data directory holds files one tenant may not
 # read, because an SVG placed there could otherwise pull them into its own PDF.
+# Referenced-file changes intentionally do not invalidate cached output; use
+# `force=true` to regenerate it.
 allow_local_resources = false
 
 
