@@ -81,7 +81,7 @@ Output formats
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
 - [x] `limit`
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
-  - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`; not supported for `gif` output, which has no quality setting
+  - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`
 - [ ] `thumb` (string): thumbnail parameters in format `thumb=page:1,2`
   - [ ] `p`|`page`|`pages` (string): **deprecated**, use the top-level `page`|`pages` parameter, which shares the same syntax and takes precedence when both are given
 - [ ] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500`

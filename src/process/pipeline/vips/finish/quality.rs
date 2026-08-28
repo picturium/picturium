@@ -14,6 +14,7 @@ pub(crate) fn get_quality_curve<'a>(
         OutputFormat::Avif => Some(&config.avif),
         OutputFormat::Jxl => Some(&config.jxl),
         OutputFormat::Png => Some(&config.png),
+        OutputFormat::Gif => Some(&config.gif),
         _ => None,
     }
 }
@@ -125,10 +126,10 @@ mod tests {
     }
 
     #[test]
-    fn gif_has_no_quality_curve() {
+    fn gif_has_a_quality_curve() {
         let config = QualityConfig::default();
 
-        assert!(get_quality_curve(&config, &OutputFormat::Gif).is_none());
+        assert!(get_quality_curve(&config, &OutputFormat::Gif).is_some());
         assert!(get_quality_curve(&config, &OutputFormat::Jpeg).is_some());
     }
 }

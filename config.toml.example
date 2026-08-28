@@ -215,7 +215,7 @@ max_size_min_quality = 10
 # Quality curves
 #
 # Output quality is interpolated between `max` (small images) and `min` (large
-# ones), then offset by the named `q` level. All five curves use the shared
+# ones), then offset by the named `q` level. All six curves use the shared
 # 1-100 quality domain, including JXL, which converts internally as
 # distance = distance_per_quality * (100 - q) -- so JXL's numbers here will not
 # match the JXL documentation's distances.
@@ -265,6 +265,15 @@ max = 85.333
 low = -10
 high = 4.467
 maximum = 11.667
+
+# GIF quality drives palette depth and dithering rather than a codec quality
+# setting -- see [output.encoder.gif]
+[output.quality_curves.gif]
+min = 50
+max = 90
+low = -15
+high = 6
+maximum = 10
 
 
 # Per-encoder options
@@ -322,5 +331,20 @@ distance_per_quality = 0.15
 effort = 3
 
 [output.encoder.gif]
+# GIF has no codec quality setting, so quality is spent on the palette instead.
+# Each pair below is interpolated across the 1-100 quality domain: the first
+# value applies at quality 100, the second at quality 1.
+# Palette size is 2^bitdepth colours, 1-8
+bitdepth = 8
+min_bitdepth = 5
+# Quantisation dithering, 0-1
+dither = 1.0
+min_dither = 0.6
+# Animation only. Interframe error at quality 1 (0 at quality 100), 0-32;
+# pixels that changed less than this are reused from the previous frame
+interframe_maxerror = 8.0
+# Animation only. Interpalette error at quality 1 (0 at quality 100), 0-256;
+# above this a frame reuses the previous frame's palette
+interpalette_maxerror = 20.0
 # Range 1-10 [default: 7]
 effort = 7

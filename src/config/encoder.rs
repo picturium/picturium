@@ -68,6 +68,12 @@ pub struct JxlEncoderConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct GifEncoderConfig {
     pub effort: i32,
+    pub bitdepth: i32,
+    pub min_bitdepth: i32,
+    pub dither: f64,
+    pub min_dither: f64,
+    pub interframe_maxerror: f64,
+    pub interpalette_maxerror: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -140,6 +146,12 @@ impl Default for GifEncoderConfig {
     fn default() -> Self {
         Self {
             effort: 7,
+            bitdepth: 8,
+            min_bitdepth: 5,
+            dither: 1.0,
+            min_dither: 0.6,
+            interframe_maxerror: 8.0,
+            interpalette_maxerror: 20.0,
         }
     }
 }
@@ -201,6 +213,54 @@ impl EncoderConfig {
             );
         }
 
+        for (name, value) in [
+            ("output.encoder.gif.bitdepth", self.gif.bitdepth),
+            ("output.encoder.gif.min_bitdepth", self.gif.min_bitdepth),
+        ] {
+            if !(1..=8).contains(&value) {
+                bail!("{name} must be between 1 and 8, got {value}");
+            }
+        }
+
+        if self.gif.min_bitdepth > self.gif.bitdepth {
+            bail!(
+                "output.encoder.gif.min_bitdepth ({}) must not exceed output.encoder.gif.bitdepth ({})",
+                self.gif.min_bitdepth,
+                self.gif.bitdepth
+            );
+        }
+
+        for (name, value) in [
+            ("output.encoder.gif.dither", self.gif.dither),
+            ("output.encoder.gif.min_dither", self.gif.min_dither),
+        ] {
+            if !(0.0..=1.0).contains(&value) {
+                bail!("{name} must be between 0 and 1, got {value}");
+            }
+        }
+
+        if self.gif.min_dither > self.gif.dither {
+            bail!(
+                "output.encoder.gif.min_dither ({}) must not exceed output.encoder.gif.dither ({})",
+                self.gif.min_dither,
+                self.gif.dither
+            );
+        }
+
+        if !(0.0..=32.0).contains(&self.gif.interframe_maxerror) {
+            bail!(
+                "output.encoder.gif.interframe_maxerror must be between 0 and 32, got {}",
+                self.gif.interframe_maxerror
+            );
+        }
+
+        if !(0.0..=256.0).contains(&self.gif.interpalette_maxerror) {
+            bail!(
+                "output.encoder.gif.interpalette_maxerror must be between 0 and 256, got {}",
+                self.gif.interpalette_maxerror
+            );
+        }
+
         if !(0..=4).contains(&self.jxl.tier) {
             bail!("output.encoder.jxl.tier must be between 0 and 4, got {}", self.jxl.tier);
         }
@@ -245,6 +305,12 @@ mod tests {
         assert_eq!(config.avif.bitdepth, 8);
         assert_eq!(config.jxl.tier, 0);
         assert!(!config.jxl.lossless);
+        assert_eq!(config.gif.bitdepth, 8);
+        assert_eq!(config.gif.min_bitdepth, 5);
+        assert_eq!(config.gif.dither, 1.0);
+        assert_eq!(config.gif.min_dither, 0.6);
+        assert_eq!(config.gif.interframe_maxerror, 8.0);
+        assert_eq!(config.gif.interpalette_maxerror, 20.0);
     }
 
     #[test]
@@ -262,12 +328,19 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_encoder_options() {
-        let invalid: [fn(&mut EncoderConfig); 5] = [
+        let invalid: [fn(&mut EncoderConfig); 12] = [
             |c| c.avif.bitdepth = 7,
             |c| c.jxl.tier = 5,
             |c| c.png.compression = 10,
             |c| c.png.dither = 1.5,
             |c| c.webp.min_alpha_quality = 101,
+            |c| c.gif.bitdepth = 9,
+            |c| c.gif.min_bitdepth = 0,
+            |c| c.gif.bitdepth = 4, // below the default min_bitdepth of 5
+            |c| c.gif.dither = 0.5, // below the default min_dither of 0.6
+            |c| c.gif.min_dither = 1.5,
+            |c| c.gif.interframe_maxerror = 40.0,
+            |c| c.gif.interpalette_maxerror = 300.0,
         ];
 
         for (index, apply) in invalid.iter().enumerate() {

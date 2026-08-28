@@ -17,6 +17,7 @@ impl QualityCurve {
     const AVIF: Self = Self { min: 38.0, max: 67.0, low: -10.0, high: 10.0, maximum: 16.0 };
     const PNG: Self = Self { min: 32.0, max: 99.0, low: -30.0, high: 0.0, maximum: 1.0 };
     const JXL: Self = Self { min: 66.667, max: 85.333, low: -10.0, high: 4.467, maximum: 11.667 };
+    const GIF: Self = Self { min: 50.0, max: 90.0, low: -15.0, high: 6.0, maximum: 10.0 };
 
     fn validate(&self, format: &str) -> Result<()> {
         for (name, value) in [("min", self.min), ("max", self.max)] {
@@ -47,6 +48,7 @@ pub struct QualityConfig {
     pub avif: QualityCurve,
     pub png: QualityCurve,
     pub jxl: QualityCurve,
+    pub gif: QualityCurve,
     pub min_area: f64,
     pub max_area: f64,
 }
@@ -59,6 +61,7 @@ impl Default for QualityConfig {
             avif: QualityCurve::AVIF,
             png: QualityCurve::PNG,
             jxl: QualityCurve::JXL,
+            gif: QualityCurve::GIF,
             min_area: 8.0,
             max_area: 0.25,
         }
@@ -72,6 +75,7 @@ impl QualityConfig {
         self.avif.validate("avif")?;
         self.png.validate("png")?;
         self.jxl.validate("jxl")?;
+        self.gif.validate("gif")?;
 
         if !(self.max_area > 0.0) || !(self.min_area > self.max_area) {
             bail!(
@@ -97,6 +101,8 @@ mod tests {
         assert_eq!(config.jpeg.max, 80.0);
         assert_eq!(config.webp.low, -10.0);
         assert_eq!(config.png.maximum, 1.0);
+        assert_eq!(config.gif.min, 50.0);
+        assert_eq!(config.gif.max, 90.0);
         assert_eq!(config.min_area, 8.0);
         assert_eq!(config.max_area, 0.25);
     }
@@ -135,6 +141,7 @@ mod tests {
             ("avif", config.avif),
             ("png", config.png),
             ("jxl", config.jxl),
+            ("gif", config.gif),
         ] {
             assert!(curve.validate(name).is_ok(), "{name} curve rejected");
         }

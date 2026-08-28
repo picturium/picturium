@@ -68,7 +68,7 @@ fn encode(
         OutputFormat::Avif => avif::finish_image(request, image, keep, quality),
         OutputFormat::Jxl => jxl::finish_image(request, image, keep, quality),
         OutputFormat::Png => png::finish_image(request, image, keep, quality),
-        OutputFormat::Gif => gif::finish_image(request, image, keep),
+        OutputFormat::Gif => gif::finish_image(request, image, keep, quality),
         _ => {
             return Err(anyhow::anyhow!(
                 "Unsupported output format: {:?}",
