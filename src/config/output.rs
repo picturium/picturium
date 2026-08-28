@@ -23,6 +23,7 @@ pub struct OutputConfig {
     pub max_size_threshold: u8,
     pub max_size_attempts: u8,
     pub max_size_min_quality: u8,
+    pub max_animation_frames: i32,
     pub quality_curves: QualityConfig,
     pub encoder: EncoderConfig,
 }
@@ -47,6 +48,7 @@ impl Default for OutputConfig {
             max_size_threshold: 10,
             max_size_attempts: 3,
             max_size_min_quality: 10,
+            max_animation_frames: 300,
             quality_curves: QualityConfig::default(),
             encoder: EncoderConfig::default(),
         }

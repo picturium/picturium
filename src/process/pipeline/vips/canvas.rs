@@ -3,6 +3,7 @@ use crate::enums::image_gravity::ImageGravity;
 use crate::params::padding::Padding;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::background::resolve_background;
+use crate::process::pipeline::vips::pages;
 use crate::services::size::{calculate_contain_canvas_size, calculate_cover_crop_size, gravity_offset};
 use anyhow::{Context, Result, anyhow};
 use picturium_libvips::gravity::VipsGravity;
@@ -10,10 +11,21 @@ use picturium_libvips::{
     EmbedOptions, VipsColors, VipsCompassDirection, VipsImage, VipsInterpretation, VipsOperations,
 };
 
-pub(super) fn process(request: &PipelineRequest, mut image: VipsImage) -> Result<VipsImage> {
-    if let Some((width, height)) = calculate_cover_crop_size(request, &image)
-        && (width, height) != image.get_dimensions()
-    {
+pub(super) fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage> {
+    let frame = (image.get_width(), pages::page_height(&image));
+
+    let cover = calculate_cover_crop_size(request, &image).filter(|size| *size != frame);
+    let canvas = calculate_contain_canvas_size(request);
+
+    if cover.is_none() && canvas.is_none() && request.parameters.padding.is_none() {
+        return Ok(image);
+    }
+
+    pages::per_page(image, |image| place(request, image, cover, canvas))
+}
+
+fn place(request: &PipelineRequest, mut image: VipsImage, cover: Option<(i32, i32)>, canvas: Option<(i32, i32)>) -> Result<VipsImage> {
+    if let Some((width, height)) = cover && (width, height) != image.get_dimensions() {
         image = image
             .with_gravity(
                 compass_direction(request.parameters.gravity),
@@ -24,7 +36,7 @@ pub(super) fn process(request: &PipelineRequest, mut image: VipsImage) -> Result
             .map_err(|error| anyhow!("failed to crop cover image: {error}"))?;
     }
 
-    if let Some(canvas) = calculate_contain_canvas_size(request) {
+    if let Some(canvas) = canvas {
         let content = image.get_dimensions();
 
         if canvas.0 < content.0 || canvas.1 < content.1 {

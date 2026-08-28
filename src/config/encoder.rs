@@ -32,6 +32,9 @@ pub struct WebpEncoderConfig {
     pub preset_large: WebpPreset,
     pub min_alpha_quality: i32,
     pub smart_subsample: bool,
+    pub animation_min_size: bool,
+    pub animation_kmin: i32,
+    pub animation_kmax: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +105,9 @@ impl Default for WebpEncoderConfig {
             preset_large: WebpPreset::Default,
             min_alpha_quality: 75,
             smart_subsample: true,
+            animation_min_size: false,
+            animation_kmin: 0,
+            animation_kmax: 0,
         }
     }
 }
@@ -175,6 +181,14 @@ impl EncoderConfig {
             bail!(
                 "output.encoder.webp.text_preset_area must not be negative, got {}",
                 self.webp.text_preset_area
+            );
+        }
+
+        if self.webp.animation_kmin < 0 || self.webp.animation_kmax < self.webp.animation_kmin {
+            bail!(
+                "output.encoder.webp.animation_kmin must not be negative and must be no larger than animation_kmax, got {} and {}",
+                self.webp.animation_kmin,
+                self.webp.animation_kmax
             );
         }
 

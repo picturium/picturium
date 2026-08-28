@@ -1,4 +1,3 @@
-mod gif;
 mod jpeg;
 mod pdf;
 mod svg;
@@ -42,29 +41,88 @@ fn load_vips_file(
     match format {
         VipsInputFormat::Svg => svg::load(request, source_path),
         VipsInputFormat::Jpeg => jpeg::load(request, source_path),
-        VipsInputFormat::Gif => gif::load(request, source_path),
         VipsInputFormat::Tiff => tiff::load(request, source_path),
         VipsInputFormat::Webp => webp::load(request, source_path),
         VipsInputFormat::Pdf => pdf::load(request, source_path),
+        VipsInputFormat::Gif | VipsInputFormat::Heif => default_load(source_path, Some(animation_params(request, source_path)?)),
         _ => default_load(source_path, None),
     }
 }
 
-fn default_load(source_path: &str, parameters: Option<Vec<(&str, &str)>>) -> Result<VipsImage> {
+pub(super) fn animation_params(request: &PipelineRequest, source_path: &str) -> Result<Vec<(&'static str, String)>> {
+    let pages = source_page_count(source_path)?;
+    let page = start_page(request).clamp(0, pages - 1);
+
+    let frames = frame_budget(
+        request.parameters.animate.requested_frames(),
+        request.state.config.output.max_animation_frames,
+        pages - page,
+    );
+
+    let mut params = vec![("n", frames.to_string())];
+
+    if page > 0 {
+        params.push(("page", page.to_string()));
+    }
+
+    Ok(params)
+}
+
+fn start_page(request: &PipelineRequest) -> i32 {
+    if matches!(request.source.format, InputFormat::Video(_)) {
+        return 0;
+    }
+
+    request
+        .parameters
+        .pages
+        .as_ref()
+        .and_then(|pages| pages.first())
+        .map_or(0, |page| page.saturating_sub(1) as i32)
+}
+
+fn source_page_count(source_path: &str) -> Result<i32> {
+    Ok(default_load(source_path, Some(vec![("n", "1".into())]))?
+        .get_page_count()
+        .max(1))
+}
+
+fn frame_budget(requested: i32, cap: i32, available: i32) -> i32 {
+    let available = available.max(1);
+
+    let wanted = match (requested, cap) {
+        (_, cap) if cap < 1 => requested,
+        (requested, cap) if requested < 1 => cap,
+        (requested, cap) => requested.min(cap),
+    };
+
+    match wanted < 1 {
+        true => available,
+        false => wanted.min(available),
+    }
+}
+
+fn default_load(source_path: &str, parameters: Option<Vec<(&str, String)>>) -> Result<VipsImage> {
     let mut parameters = parameters.unwrap_or_else(|| vec![]);
-    parameters.push(("revalidate", "true"));
+    
+    let access = match parameters.iter().any(|(key, value)| *key == "n" && value != "1") {
+        true => VipsAccess::Random,
+        false => VipsAccess::Sequential,
+    };
+
+    parameters.push(("revalidate", "true".into()));
 
     VipsImage::new_from_file(
         &(source_path.to_owned() + &generate_params(parameters)),
         Some(FromFileOptions {
-            access: VipsAccess::Sequential,
+            access,
             ..Default::default()
         }),
     )
     .map_err(|e| anyhow!(e))
 }
 
-fn generate_params(params: Vec<(&str, &str)>) -> String {
+fn generate_params(params: Vec<(&str, String)>) -> String {
     if params.is_empty() {
         return String::new();
     }
@@ -76,6 +134,34 @@ fn generate_params(params: Vec<(&str, &str)>) -> String {
     let result = param_strings.join(",");
 
     format!("[{result}]")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::frame_budget;
+
+    #[test]
+    fn a_frame_cap_bounds_a_request_for_every_frame() {
+        assert_eq!(frame_budget(-1, 300, 1000), 300);
+        assert_eq!(frame_budget(500, 300, 1000), 300);
+        assert_eq!(frame_budget(12, 300, 1000), 12);
+        assert_eq!(frame_budget(1, 300, 1000), 1);
+    }
+
+    #[test]
+    fn a_cap_of_zero_only_leaves_the_file_as_the_bound() {
+        assert_eq!(frame_budget(-1, 0, 1000), 1000);
+        assert_eq!(frame_budget(500, 0, 1000), 500);
+    }
+
+    #[test]
+    fn nothing_ever_reaches_past_the_end_of_the_file() {
+        // libvips errors on a page window past the end rather than truncating.
+        assert_eq!(frame_budget(-1, 300, 131), 131);
+        assert_eq!(frame_budget(500, 300, 131), 131);
+        assert_eq!(frame_budget(12, 300, 4), 4);
+        assert_eq!(frame_budget(-1, 0, 4), 4);
+    }
 }
 
 fn get_shrink_factor_float(request: &PipelineRequest, source_path: &str) -> Result<f64> {

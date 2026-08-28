@@ -33,9 +33,14 @@ pub fn resolve_output_format(headers: &HeaderMap, state: &AppState, parameters: 
     }
 }
 
-pub fn resolve_intermediate_format(source: &Source) -> Option<VipsInputFormat> {
+pub fn resolve_intermediate_format(source: &Source, output_format: &OutputFormat, parameters: &Parameters) -> Option<VipsInputFormat> {
     match source.format {
-        InputFormat::Video(_) => Some(VipsInputFormat::Png),
+        InputFormat::Video(_) => Some(
+            match parameters.animate.is_requested() && output_format.supports_animation() {
+                true => VipsInputFormat::Webp,
+                false => VipsInputFormat::Png,
+            },
+        ),
         InputFormat::Office(_) | InputFormat::Vector(_) => Some(VipsInputFormat::Pdf),
         _ => None,
     }

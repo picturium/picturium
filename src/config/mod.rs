@@ -13,7 +13,7 @@ pub mod watermark;
 pub mod output;
 mod office;
 mod vector;
-mod video;
+pub mod video;
 
 use crate::config::cache::CacheConfig;
 use crate::config::cors::CorsConfig;

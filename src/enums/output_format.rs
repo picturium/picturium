@@ -18,6 +18,12 @@ pub enum OutputFormat {
     Svg,
 }
 
+impl OutputFormat {
+    pub fn supports_animation(&self) -> bool {
+        matches!(self, Self::Gif | Self::Webp)
+    }
+}
+
 pub fn get_output_mime(format: &OutputFormat) -> &'static str {
     match format {
         OutputFormat::Jpeg => "image/jpeg",

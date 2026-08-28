@@ -121,6 +121,19 @@ conversion_timeout = 30
 default_time = "1"
 # Timeout for a single frame extraction in seconds [default: 15]
 extraction_timeout = 15
+# Timeout for extracting a clip in seconds [default: 60]. A clip decodes every
+# frame between its first and last sample, so it is not bounded like a seek.
+animation_timeout = 60
+# A video is a still frame unless the request carries an `anim` parameter and
+# asks for a format that can animate (webp, gif). These cover the clip that is
+# extracted then.
+# Frames sampled when `anim` does not give a count [default: 48]
+animation_frames = 48
+# Rate the clip is sampled at when `anim` gives no timing or fps [default: 12]
+animation_fps = 12
+# Hard cap on the frames one clip may hold, whatever `anim=frames` asks for
+# [default: 300]
+max_animation_frames = 300
 
 
 [image]
@@ -210,6 +223,10 @@ max_size_threshold = 10
 max_size_attempts = 3
 # Quality floor for the recompress search, 1-100 [default: 10]
 max_size_min_quality = 10
+# Hard cap on the frames one animation may hold, 0 = unlimited [default: 300].
+# Every frame is a separate pass through the geometry stages, so a long
+# animation costs proportionally more; frames past the cap are not decoded.
+max_animation_frames = 300
 
 
 # Quality curves
@@ -293,9 +310,18 @@ preset_small = "text"
 preset_large = "default"
 # Alpha is never encoded below this quality, 0-100 [default: 75]
 min_alpha_quality = 75
+# Still images only: animation frames encode slower and larger with it on
 smart_subsample = true
 # Range 0-6 [default: 2]
 effort = 2
+# Animation only: try every frame encoding and keep the smallest file. Much
+# slower to encode [default: false]
+animation_min_size = false
+# Animation only: smallest and largest gap between keyframes, 0 leaving it to
+# libwebp, which places none. Closer keyframes seek better but cost encode time
+# and a much larger file [default: 0 and 0]
+animation_kmin = 0
+animation_kmax = 0
 
 [output.encoder.png]
 # Quality at which PNG switches to the lossless (non-palette) branch [default: 100]

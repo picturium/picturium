@@ -40,7 +40,10 @@ fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromP
         dpi,
         scale,
         background: resolve_background(request.parameters.background).to_vec(),
-        access: VipsAccess::Sequential,
+        access: match page_count > 1 {
+            true => VipsAccess::Random,
+            false => VipsAccess::Sequential,
+        },
         revalidate: true,
         ..Default::default()
     })

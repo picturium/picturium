@@ -1,6 +1,7 @@
 use crate::config::encoder::GifEncoderConfig;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::background::resolve_background;
+use crate::process::pipeline::vips::pages;
 use picturium_libvips::{GifSaveOptions, VipsBufferSaving, VipsImage, VipsKeep};
 
 pub(crate) fn finish_image(
@@ -24,6 +25,7 @@ pub(crate) fn finish_image(
             interpalette_maxerror: settings.interpalette_maxerror,
             keep,
             background: &background,
+            page_height: pages::page_height(image),
             ..Default::default()
         }))
         .map_err(|e| anyhow::anyhow!("Failed to save GIF image: {:?}", e))

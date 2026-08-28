@@ -152,18 +152,16 @@ pub(crate) fn calculate_contain_canvas_size(request: &PipelineRequest) -> Option
     Some((i32::from(width), i32::from(height)))
 }
 
-pub(crate) fn calculate_cover_crop_size(
-    request: &PipelineRequest,
-    image: &VipsImage,
-) -> Option<(i32, i32)> {
+pub(crate) fn calculate_cover_crop_size(request: &PipelineRequest, image: &VipsImage) -> Option<(i32, i32)> {
     if request.parameters.fit != ImageFit::Cover {
         return None;
     }
 
     let (width, height) = canvas_size(request)?;
+    
     Some((
         i32::from(width).min(image.get_width()),
-        i32::from(height).min(image.get_height()),
+        i32::from(height).min(image.get_page_height().clamp(1, image.get_height().max(1))),
     ))
 }
 

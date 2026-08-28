@@ -10,10 +10,29 @@ mod sharpen;
 
 use crate::enums::filter::FilterValue;
 use crate::process::pipeline::request::PipelineRequest;
+use crate::process::pipeline::vips::pages;
 use anyhow::Result;
 use picturium_libvips::{VipsBandFormat, VipsImage};
 
-pub fn process(request: &PipelineRequest, mut image: VipsImage) -> Result<VipsImage> {
+pub fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage> {
+    if request.parameters.filter.0.is_empty() {
+        return Ok(image);
+    }
+
+    match request.parameters.filter.0.iter().any(geometric) {
+        true => pages::per_page(image, |image| apply(request, image)),
+        false => apply(request, image),
+    }
+}
+
+fn geometric(filter: &FilterValue) -> bool {
+    matches!(
+        filter,
+        FilterValue::Blur(_) | FilterValue::Sharpen(_) | FilterValue::Pixelate(_)
+    )
+}
+
+fn apply(request: &PipelineRequest, mut image: VipsImage) -> Result<VipsImage> {
     let bit_depth = image.get_bit_depth();
     let divider = (1 << bit_depth) as f64;
     let has_clamp = matches!(bit_depth, 8 | 16);

@@ -1,3 +1,4 @@
+mod animation;
 mod avif;
 mod gif;
 mod jpeg;
@@ -16,6 +17,7 @@ use quality::{get_quality_curve, resolve_quality};
 
 pub fn finish_image(request: &PipelineRequest, image: VipsImage) -> Result<Vec<u8>> {
     let config = &request.state.config.output;
+    let image = animation::prepare(request, image)?;
     let keep = metadata_to_keep(&request.parameters.metadata);
     let curve = get_quality_curve(&config.quality_curves, &request.output_format);
     let limit = request.parameters.limits.size.filter(|_| curve.is_some());

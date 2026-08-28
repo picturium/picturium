@@ -1,6 +1,7 @@
 use crate::config::quality::{QualityConfig, QualityCurve};
 use crate::enums::output_format::OutputFormat;
 use crate::enums::output_quality::OutputQuality;
+use crate::process::pipeline::vips::pages;
 use picturium_libvips::VipsImage;
 use tracing::debug;
 
@@ -57,7 +58,7 @@ fn quality_for_area(
 
 pub(crate) fn calculate_area(image: &VipsImage) -> f64 {
     let width = image.get_width() as f64;
-    let height = image.get_height() as f64;
+    let height = pages::page_height(image) as f64;
 
     width * height / 1000000.0
 }

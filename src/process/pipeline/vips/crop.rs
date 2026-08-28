@@ -1,5 +1,6 @@
 use crate::enums::image_gravity::ImageGravity;
 use crate::process::pipeline::request::PipelineRequest;
+use crate::process::pipeline::vips::pages;
 use crate::services::size::calculate_crop_rectangle;
 use anyhow::{Result, anyhow};
 use picturium_libvips::{VipsCrop, VipsImage, VipsInteresting};
@@ -14,7 +15,7 @@ pub(super) fn process(request: &PipelineRequest, image: VipsImage) -> Result<Vip
         request.source.height.unwrap_or(1).max(1),
     );
 
-    let dimensions = image.get_dimensions();
+    let dimensions = (image.get_width(), pages::page_height(&image));
     let rectangle = calculate_crop_rectangle(&crop, source);
     let (left, top, width, height) = to_image_coordinates(rectangle, source, dimensions);
 
@@ -22,12 +23,16 @@ pub(super) fn process(request: &PipelineRequest, image: VipsImage) -> Result<Vip
         return Ok(image);
     }
 
-    match crop.gravity {
-        Some(ImageGravity::Attention) => image.smartcrop(width, height, VipsInteresting::Attention),
-        Some(ImageGravity::Entropy) => image.smartcrop(width, height, VipsInteresting::Entropy),
-        _ => image.extract_area(left, top, width, height),
-    }
-    .map_err(|error| anyhow!("failed to crop image: {error}"))
+    pages::per_page(image, |image| {
+        match crop.gravity {
+            Some(ImageGravity::Attention) => {
+                image.smartcrop(width, height, VipsInteresting::Attention)
+            }
+            Some(ImageGravity::Entropy) => image.smartcrop(width, height, VipsInteresting::Entropy),
+            _ => image.extract_area(left, top, width, height),
+        }
+        .map_err(|error| anyhow!("failed to crop image: {error}"))
+    })
 }
 
 fn to_image_coordinates(

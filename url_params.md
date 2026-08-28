@@ -45,7 +45,7 @@ Output formats
 - [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
 - [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
 - [x] `upsize` (bool): enable image upsizing [default: ENV]
-- [x] `extend` (string): extend image to fit aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
+- [x] `extend` (string): extend image to fit an aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
 - [x] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
   - [x] `contain`: preserve the image aspect ratio inside the requested width and height
@@ -58,10 +58,10 @@ Output formats
 - [x] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
 - [x] `cache` (any): browser / CDN cache buster (timestamp or random string); does not regenerate server-cached output
 - [x] `force` (bool): skip the server caches, regenerate, and replace the cached entries so later requests without `force` serve the fresh output; responds with `Cache-Control: no-store` and never returns 304
-- [x] `download` (string): attach file to response (eg. `download=image.png`) [default: _filename_], file extension overrides `f`
+- [x] `download` (string): attach a file to response (e.g. `download=image.png`) [default: _filename_], file extension overrides `f`
 - [x] `original` (bool): return original image instead of processed one [default: false]
 - [x] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
-- [x] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg) [default: auto]
+- [x] `f` (string): output format (auto, jpg / jpeg, png, webp, gif, avif, jxl, pdf, svg) [default: auto]
   - `auto` picks the first entry of `output.format_priority` the client accepts, falling back to webp
   - `pdf` and `svg` are **document** formats, not image formats: libvips can rasterize them but cannot write them, so the document itself is served
     - `f=svg` requires an SVG source (`.svg` / `.svgz`) or a **vector** source (`.ai`, `.cdr`, `.cmx`, `.cdt`, `.eps`), otherwise 415; an SVG is served as-is, a vector source is converted with Inkscape to plain SVG
@@ -69,12 +69,14 @@ Output formats
       - an SVG's `<image>` elements are embedded only when they are inlined as `data:` URIs; file references are followed only if `svg.allow_local_resources` is on, and even then only inside the data directory
     - `f=pdf` with `pages` returns a PDF of exactly those pages (`pages=1,4` gives two pages, not 4); pages past the end are ignored, a selection with none of them is 400
     - sizing, quality, filter, and metadata parameters do not apply to document responses, the same as under `original`; `dpi` and `style` are the exception, they apply to an SVG converted to PDF
+  - only `webp` and `gif` can carry an animation; every other format gets the first frame. `gif` is not in the default `output.format_priority`, so `auto` never picks it
   - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
-- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); a **vector** source is converted to PDF before it is loaded, so `dpi` applies to it exactly as it does to a PDF source; under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
+- [x] `dpi` (int): default DPI for loading images (e.g. SVG images) (default: 72); a **vector** source is converted to PDF before it is loaded, so `dpi` applies to it exactly as it does to a PDF source; under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
 - [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most 1000 pages; under `f=pdf` it selects the pages of the returned PDF instead
+  - for an **animated** source the first value is the frame the animation starts at (`pages=3` drops the first two frames)
   - a **vector** source is converted to a PDF first, so `pages` selects pages of that PDF; Inkscape produces a single page for the formats it imports, so a selection other than `1` is normally out of range
-  - for a **video** source it is a frame number instead, and only the first one is used (`pages=250` is the 250th frame); an exact frame means decoding every frame before it, so `t` is much more performant on a long video
-- [x] `t`|`time` (string): position of the frame to extract from a **video** source, in seconds (`t=5`, `t=5.25`) or as a timecode (`t=00:01:30`) [default: `video.default_time`]; takes precedence over `pages`, and seeks to the nearest keyframe, so it is more performant on a long video as `page`
+  - a **video** source ignores it: a video is addressed by time with `t`, because a seek to a timestamp costs a keyframe interval where an exact frame number costs every frame before it
+- [x] `t`|`time` (string): position of the frame to extract from a **video** source, in seconds (`t=5`, `t=5.25`) or as a timecode (`t=00:01:30`) [default: `video.default_time`]; this is the only way to address a video, and it seeks to the nearest keyframe rather than decoding up to the position
   - when a position past the end of the video is specified, error 500 is returned
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
 - [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
@@ -84,9 +86,18 @@ Output formats
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`
 - [ ] `thumb` (string): thumbnail parameters in format `thumb=page:1,2`
   - [ ] `p`|`page`|`pages` (string): **deprecated**, use the top-level `page`|`pages` parameter, which shares the same syntax and takes precedence when both are given
-- [ ] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500`
-  - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `pages` is used as a starting page
-  - [ ] `timing` (float): animation timing in milliseconds, [default: 500]
+- [x] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500|loop:0|stride:2`
+  - an animated source (animated GIF or WebP, AVIF / HEIC sequence, multi-page TIFF) keeps its animation without any `anim=` at all, along with its original frame delays and loop count; a multi-page document rendered with `pages` becomes an animation the same way
+  - `anim=off` (also `false`, `no`, `0`) flattens the source to its first frame
+  - an APNG source is read as its first frame: libvips has no `n` option on `pngload`
+  - [x] `frames` (int): number of frames to output, counting from the frame `pages` selects [default: every frame]; a value below 1 also means every frame, and either way `output.max_animation_frames` is the ceiling
+  - [x] `timing` (int): delay between frames in milliseconds, 5-5000, replacing the source timing [default: the source delays, or 100 ms when the source has none]
+  - [x] `fps` (float): the same control expressed as a rate, `fps:10` being `timing:100`; cannot be combined with `timing`
+  - GIF stores a delay in centiseconds, so a `timing` that is not a multiple of 10 is rounded there; WebP keeps the millisecond
+  - [x] `loop` (int): how many times the animation repeats, 0 being forever [default: the source loop count]
+  - [x] `stride` (int): keep every Nth frame, at least 1 [default: 1]. On a video the stride divides the sampling rate instead, so `frames` still gives the number of frames you get back, spread over N times as much footage.
+  - sizing, cropping, padding, rotation, and filters apply to every frame, so `w`, `h`, `fit`, `crop` and `pad` mean the same thing they do for a still image
+  - for a **video** source `anim` extracts a clip instead of a single frame: `t` gives the start, `frames` the length (default `video.animation_frames`, capped by `video.max_animation_frames`) and `timing` / `fps` the sample rate (default `video.animation_fps`). Without `anim=`, a video is still a single frame
 - [x] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; at least one of `w`, `h` or `ar` must be set
   - [x] `w` (int): width of the crop area in pixels relative to the original image size [default: 0]
   - [x] `h` (int): height of the crop area in pixels relative to the original image size [default: 0]
@@ -116,7 +127,7 @@ Output formats
   - every key falls back to its `[watermark]` configuration value; with no `watermark=` at all the watermark is applied when `watermark.enabled` is on
   - `watermark=false` switches it off for the request, whatever the configuration says
   - an `image` takes priority over `text`
-  - document responses (`f=pdf`, `f=svg`, `original=true`) are never watermarked, the same as sizing, quality and filter parameters
+  - document responses (`f=pdf`, `f=svg`, `original=true`) are never watermarked, the same as sizing, quality, and filter parameters
   - an animated watermark image contributes only its first frame
   - the mark is drawn on every frame of an animated response and on every page of a rendered document
   - a mark bigger than `watermark.max_scale` of the image (its padding included) is shrunk to fit, keeping its aspect ratio

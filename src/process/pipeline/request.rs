@@ -27,7 +27,8 @@ impl<'a> PipelineRequest<'a> {
         parameters: &'a Parameters,
         forced: bool,
     ) -> Self {
-        let intermediate_format = resolve_intermediate_format(source);
+        let output_format = resolve_output_format(&headers, &state, &parameters);
+        let intermediate_format = resolve_intermediate_format(source, &output_format, parameters);
         let input_format = resolve_input_format(source, intermediate_format);
 
         Self {
@@ -37,7 +38,7 @@ impl<'a> PipelineRequest<'a> {
             forced,
             input_format,
             intermediate_format,
-            output_format: resolve_output_format(&headers, &state, &parameters),
+            output_format,
         }
     }
 }

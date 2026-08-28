@@ -5,6 +5,7 @@ mod crop;
 mod filter;
 mod finish;
 mod loader;
+mod pages;
 mod resize;
 mod rotate;
 mod watermark;
@@ -50,10 +51,11 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
 }
 
 /// Store the dimensions of the source image, calculated back from the loaded
-/// (possibly shrunk on load) image and the shrink factor.
+/// (possibly shrunk on load) image and the shrink factor. Dimensions are those
+/// of a single frame.
 fn update_source_dimensions(request: &mut PipelineRequest, image: &VipsImage) {
     let shrink = request.source.shrink;
 
     request.source.width = Some((image.get_width() as f64 * shrink).round() as u16);
-    request.source.height = Some((image.get_height() as f64 * shrink).round() as u16);
+    request.source.height = Some((pages::page_height(image) as f64 * shrink).round() as u16);
 }
