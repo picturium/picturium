@@ -105,15 +105,23 @@ Output formats
   - [x] `sharpen` (float): apply sharpening [default: 0, range: 0..10]
   - [x] `pixelate` (float): apply pixelation [default: 1, range: 1..n]
   - [x] `palette` (string): convert image to color palette (max. 2 colors - monochrome or duotone)
-- [ ] `watermark` (string): apply watermark to image, in format `watermark=image:watermark.png|opacity:50|padding:10`
-  - [ ] `false` (bool): disable watermarking [default: ENV]
-  - [ ] `anchor` (string): watermark anchor position (center, repeat, top, right, bottom, left, top-left, top-right, bottom-left, bottom-right) [default: ENV]
-  - [ ] `opacity` (int): watermark opacity [default: ENV]
-  - [ ] `pad` (int): watermark padding in px [default: ENV]
-  - [ ] `rot` (float): watermark rotation in degrees [default: ENV]
-  - [ ] `image` (string): path to watermark image [default: ENV]
-  - [ ] `scale` (float): watermark image scale [default: ENV]
-  - [ ] `text` (string): watermark text [default: ENV]
-  - [ ] `font` (string): watermark font family [default: ENV]
-  - [ ] `size` (int): watermark font size in px [default: ENV]
-  - [ ] `color` (string): watermark font color [default: ENV]
+- [x] `watermark` (string): apply a watermark to the image, in format `watermark=image:watermark.png|opacity:50|pad:10`
+  - every key falls back to its `[watermark]` configuration value; with no `watermark=` at all the watermark is applied when `watermark.enabled` is on
+  - `watermark=false` switches it off for the request, whatever the configuration says
+  - an `image` takes priority over `text`
+  - document responses (`f=pdf`, `f=svg`, `original=true`) are never watermarked, the same as sizing, quality and filter parameters
+  - an animated watermark image contributes only its first frame
+  - the mark is drawn on every frame of an animated response and on every page of a rendered document
+  - a mark bigger than `watermark.max_scale` of the image (its padding included) is shrunk to fit, keeping its aspect ratio
+  - [x] `anchor` (string): anchor position (center, repeat, top, right, bottom, left, top-left, top-right, bottom-left, bottom-right) [default: `watermark.position`]
+  - [x] `opacity` (int): opacity, 0-100 [default: `watermark.opacity`]
+  - [x] `pad`|`padding` (int or CSS-like shorthand, same syntax as the top-level `pad`): padding in px, kept between the mark and the edge, and between tiles under `anchor:repeat` [default: `watermark.padding`]
+  - [x] `rot`|`rotate` (float): rotation in degrees, any angle [default: `watermark.rotate`]
+  - [x] `image` (string): path to the watermark image, relative to the data directory and confined to it [default: `watermark.image.path`, which is operator supplied and may point anywhere]
+  - [x] `scale` (float): watermark image scale [default: `watermark.image.scale`]
+  - [x] `text` (string): watermark text, used when no image is given [default: `watermark.text.text`]
+  - [x] `font` (string): font family [default: `watermark.text.font_family`]
+  - [x] `size` (int): font size in px [default: `watermark.text.font_size`]
+  - [x] `color` (string): font color, same syntax as `bg` [default: `watermark.text.font_color`]
+  - `dpr` scales `pad`, `scale` and `size`
+  - a mark larger than the output is scaled down to fit

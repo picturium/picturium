@@ -9,7 +9,7 @@ pub mod quality;
 mod svg;
 mod pdf;
 mod image;
-mod watermark;
+pub mod watermark;
 pub mod output;
 mod office;
 mod video;
@@ -82,6 +82,7 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
+        self.watermark.validate()?;
         self.output.validate()?;
         self.cache.validate()
     }

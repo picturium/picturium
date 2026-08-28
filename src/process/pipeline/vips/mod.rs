@@ -6,6 +6,7 @@ mod finish;
 mod loader;
 mod resize;
 mod rotate;
+mod watermark;
 
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::finish::finish_image;
@@ -38,7 +39,8 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
     // Filters
     image = filter::process(request, image)?;
 
-    // TODO > Watermark
+    // Watermark
+    image = watermark::process(request, image)?;
 
     finish_image(request, image)
 }

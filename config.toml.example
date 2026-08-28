@@ -135,18 +135,31 @@ crop_gravity = "center"
 resample = "lanczos3"
 
 
+# Applied to every image unless the request says otherwise, overridable per
+# request with `watermark=...` and switched off with `watermark=false`.
+# With `enabled = true`, one of `image.path` or `text.text` must be set,
+# otherwise picturium refuses to boot.
 [watermark]
 enabled = false
 # Watermark position (center, repeat, top, right, bottom, left, top-left,
 # top-right, bottom-left, bottom-right [default])
 position = "bottom-right"
+# Opacity, 0-100 [default: 50]
 opacity = 50
-# Padding in px. CSS-like shorthand: "10", "10,20", "10,20,30" or "10,20,30,40"
+# Padding in px, kept between the mark and the edge, and between tiles under
+# `position = "repeat"`. CSS-like shorthand: "10", "10,20", "10,20,30" or
+# "10,20,30,40"
 padding = "10,10,10,10"
-# Rotation in degrees [default: 0]
-rotate = 0
+# Rotation in degrees, any angle [default: 0]
+rotate = 0.0
+# Largest share of the image the mark may cover, 0-1 [default: 1.0]. A bigger
+# mark is shrunk to fit, keeping its aspect ratio; a smaller one is left alone
+max_scale = 1.0
 
+# An image watermark takes priority over a text one.
 [watermark.image]
+# Not confined to the data directory: this path is operator supplied, unlike the
+# one a request may pass as `watermark=image:...`
 path = ""
 scale = 1.0
 
@@ -154,6 +167,7 @@ scale = 1.0
 text = ""
 font_family = "Arial"
 font_size = 12
+# Same syntax as the `bg` parameter
 font_color = "black"
 
 

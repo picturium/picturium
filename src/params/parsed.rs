@@ -21,7 +21,7 @@ use crate::params::metadata::Metadata;
 use crate::params::padding::Padding;
 use crate::params::rotate::Rotate;
 use crate::params::time::Time;
-use crate::params::watermark::Watermark;
+use crate::params::watermark::{ResolvedWatermark, Watermark};
 
 const DEFAULT_DPR: f32 = 1.0;
 const DEFAULT_SCALE: f32 = 1.0;
@@ -56,7 +56,7 @@ pub struct Parameters {
     pub pages: Option<Vec<u32>>,
     pub animate: Animate,
     pub time: Option<Time>,
-    pub watermark: Watermark,
+    pub watermark: Option<ResolvedWatermark>,
 }
 
 impl Parameters {
@@ -65,7 +65,10 @@ impl Parameters {
         let scale = params.scale.unwrap_or(DEFAULT_SCALE);
 
         let padding = params.padding.map(|p| p.apply_dpr(dpr));
-        let watermark = params.watermark.unwrap_or_default().apply_dpr(dpr);
+        let watermark = Watermark::resolve(
+            params.watermark.map(|watermark| watermark.apply_dpr(dpr)),
+            &config.watermark,
+        );
 
         // `thumb=p:` is deprecated; new `page`|`pages` parameter takes priority
         let pages = params.pages.map(|pages| pages.0).or_else(|| params.thumbnail.and_then(|thumbnail| thumbnail.pages));

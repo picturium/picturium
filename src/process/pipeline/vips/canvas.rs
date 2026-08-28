@@ -138,7 +138,7 @@ fn background_for_bands(rgba: [f64; 4], bands: i32) -> Vec<f64> {
     }
 }
 
-fn gravity_offset(
+pub(super) fn gravity_offset(
     gravity: ImageGravity,
     outer: (i32, i32),
     inner: (i32, i32),
