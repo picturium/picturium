@@ -89,7 +89,10 @@ impl Parameters {
             auto_rotate: params.auto_rotate.unwrap_or_else(|| config.image.auto_rotate.into()),
             rotate: params.rotate.unwrap_or_default(),
             background: params.background,
-            crop: params.crop,
+            crop: params.crop.map(|mut crop| {
+                crop.gravity.get_or_insert(config.image.crop_gravity);
+                crop
+            }),
             filter: params.filter.unwrap_or_default(),
             download: params.download.unwrap_or_default(),
             original: params.original.unwrap_or_default(),
@@ -147,6 +150,26 @@ mod tests {
         });
 
         assert_eq!(parameters.pages, Some(vec![2]));
+    }
+
+    #[test]
+    fn the_crop_gravity_falls_back_to_the_dedicated_config_default() {
+        let parameters = resolve(RequestParams {
+            crop: Some("w:50".parse().unwrap()),
+            ..Default::default()
+        });
+
+        assert_eq!(parameters.crop.unwrap().gravity, Some(ImageGravity::Center));
+    }
+
+    #[test]
+    fn an_explicit_crop_gravity_is_kept() {
+        let parameters = resolve(RequestParams {
+            crop: Some("w:50|g:top-right".parse().unwrap()),
+            ..Default::default()
+        });
+
+        assert_eq!(parameters.crop.unwrap().gravity, Some(ImageGravity::TopRight));
     }
 
     #[test]

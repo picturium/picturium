@@ -3,7 +3,7 @@ use crate::enums::image_gravity::ImageGravity;
 use crate::params::padding::Padding;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::background::resolve_background;
-use crate::services::size::{calculate_contain_canvas_size, calculate_cover_crop_size};
+use crate::services::size::{calculate_contain_canvas_size, calculate_cover_crop_size, gravity_offset};
 use anyhow::{Context, Result, anyhow};
 use picturium_libvips::gravity::VipsGravity;
 use picturium_libvips::{
@@ -25,7 +25,19 @@ pub(super) fn process(request: &PipelineRequest, mut image: VipsImage) -> Result
     }
 
     if let Some(canvas) = calculate_contain_canvas_size(request) {
-        let offset = gravity_offset(request.parameters.gravity, canvas, image.get_dimensions())?;
+        let content = image.get_dimensions();
+
+        if canvas.0 < content.0 || canvas.1 < content.1 {
+            return Err(anyhow!(
+                "contain canvas {}x{} is smaller than content {}x{}",
+                canvas.0,
+                canvas.1,
+                content.0,
+                content.1
+            ));
+        }
+
+        let offset = gravity_offset(request.parameters.gravity, canvas, content);
         image = embed(
             image,
             offset,
@@ -138,49 +150,7 @@ fn background_for_bands(rgba: [f64; 4], bands: i32) -> Vec<f64> {
     }
 }
 
-pub(super) fn gravity_offset(
-    gravity: ImageGravity,
-    outer: (i32, i32),
-    inner: (i32, i32),
-) -> Result<(i32, i32)> {
-    let remaining_x = outer
-        .0
-        .checked_sub(inner.0)
-        .filter(|value| *value >= 0)
-        .ok_or_else(|| {
-            anyhow!(
-                "contain canvas width {} is smaller than content width {}",
-                outer.0,
-                inner.0
-            )
-        })?;
-    let remaining_y = outer
-        .1
-        .checked_sub(inner.1)
-        .filter(|value| *value >= 0)
-        .ok_or_else(|| {
-            anyhow!(
-                "contain canvas height {} is smaller than content height {}",
-                outer.1,
-                inner.1
-            )
-        })?;
-
-    let center = (remaining_x / 2, remaining_y / 2);
-    Ok(match gravity {
-        ImageGravity::Top => (center.0, 0),
-        ImageGravity::Right => (remaining_x, center.1),
-        ImageGravity::Bottom => (center.0, remaining_y),
-        ImageGravity::Left => (0, center.1),
-        ImageGravity::TopLeft => (0, 0),
-        ImageGravity::TopRight => (remaining_x, 0),
-        ImageGravity::BottomLeft => (0, remaining_y),
-        ImageGravity::BottomRight => (remaining_x, remaining_y),
-        ImageGravity::Center | ImageGravity::Attention | ImageGravity::Entropy => center,
-    })
-}
-
-fn padded_dimensions(dimensions: (i32, i32), padding: Padding) -> Result<(i32, i32)> {
+pub(super) fn padded_dimensions(dimensions: (i32, i32), padding: Padding) -> Result<(i32, i32)> {
     let horizontal = padding
         .left
         .checked_add(padding.right)
@@ -208,57 +178,6 @@ fn padded_dimensions(dimensions: (i32, i32), padding: Padding) -> Result<(i32, i
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn basic_gravity_offsets_position_content_in_all_nine_directions() {
-        let outer = (100, 80);
-        let inner = (40, 20);
-
-        assert_eq!(
-            gravity_offset(ImageGravity::Top, outer, inner).unwrap(),
-            (30, 0)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Right, outer, inner).unwrap(),
-            (60, 30)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Bottom, outer, inner).unwrap(),
-            (30, 60)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Left, outer, inner).unwrap(),
-            (0, 30)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::TopLeft, outer, inner).unwrap(),
-            (0, 0)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::TopRight, outer, inner).unwrap(),
-            (60, 0)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::BottomLeft, outer, inner).unwrap(),
-            (0, 60)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::BottomRight, outer, inner).unwrap(),
-            (60, 60)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Center, outer, inner).unwrap(),
-            (30, 30)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Attention, outer, inner).unwrap(),
-            (30, 30)
-        );
-        assert_eq!(
-            gravity_offset(ImageGravity::Entropy, outer, inner).unwrap(),
-            (30, 30)
-        );
-    }
 
     #[test]
     fn cover_crop_maps_image_gravity_to_libvips_compass_direction() {

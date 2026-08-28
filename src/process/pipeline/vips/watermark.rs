@@ -3,7 +3,7 @@ use crate::enums::watermark_position::WatermarkPosition;
 use crate::params::padding::Padding;
 use crate::params::watermark::{ResolvedWatermark, WatermarkSource};
 use crate::process::pipeline::request::PipelineRequest;
-use crate::process::pipeline::vips::canvas::gravity_offset;
+use crate::services::size::gravity_offset;
 use crate::process::source::Source;
 use anyhow::{Context, Result, anyhow};
 use picturium_libvips::{
@@ -193,8 +193,7 @@ fn place(overlay: VipsImage, watermark: &ResolvedWatermark, canvas: (i32, i32), 
 
     let padding = watermark.padding;
 
-    let offset = gravity_offset(gravity(watermark.anchor), inset, overlay.get_dimensions())
-        .context("failed to position watermark")?;
+    let offset = gravity_offset(gravity(watermark.anchor), inset, overlay.get_dimensions());
 
     let left = i32::try_from(padding.left).context("watermark padding exceeds libvips limits")?;
     let top = i32::try_from(padding.top).context("watermark padding exceeds libvips limits")?;

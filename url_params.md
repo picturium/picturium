@@ -87,13 +87,19 @@ Output formats
 - [ ] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500`
   - [ ] `frames` (int): animate multiple pages of document, pass number of pages to animate between [default: 0], `pages` is used as a starting page
   - [ ] `timing` (float): animation timing in milliseconds, [default: 500]
-- [ ] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; for cropping the image, at least one of `w` or `h` must be set
-  - [ ] `w` (int): width of the crop area in pixels relative to the original image size [default: 0]
-  - [ ] `h` (int): height of the crop area in pixels relative to the original image size [default: 0]
-  - [ ] `ar`: aspect ratio of the crop area [default: auto]
-  - [ ] `g`: gravity of the crop area [default: ENV]
-  - [ ] `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported [default: 0]
-  - [ ] `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported [default: 0]
+- [x] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; at least one of `w`, `h` or `ar` must be set
+  - [x] `w` (int): width of the crop area in pixels relative to the original image size [default: 0]
+  - [x] `h` (int): height of the crop area in pixels relative to the original image size [default: 0]
+  - [x] `ar`: aspect ratio of the crop area [default: auto]
+  - [x] `g`: gravity of the crop area [default: `image.crop_gravity`, not `image.gravity`]
+  - [x] `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported [default: 0]
+  - [x] `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported [default: 0]
+  - the crop is applied to the original image **before** `w`, `h`, `ar`, `fit` and `pad`, which then act on the cropped region
+  - with only one of `w` / `h` and no `ar`, the other axis spans the whole image; with `ar` it is derived from the ratio
+  - `ar` on its own takes the largest area of that ratio that fits the image
+  - a crop area larger than the image, or an `x` / `y` offset pushing it past an edge, is clamped instead of failing
+  - `g=attention` and `g=entropy` pick the region themselves (libvips smart crop) and ignore `x` / `y`
+  - does not apply to document (`f=pdf` / `f=svg`) or `original` responses
 - [x] `filter`: apply filters to image (eg. `filter=brightness:0.5|contrast:0.5`)
   - [x] `brightness` (float): adjust image brightness [default: 1, suggested effective range: 0..5]
   - [x] `contrast` (float): adjust image contrast [default: 1, suggested effective range: 0..5]

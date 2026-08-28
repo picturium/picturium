@@ -47,7 +47,7 @@ impl FromStr for Crop {
                 "g" | "gravity" => crop.gravity = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop gravity: '{value}'")))?),
                 "x" => crop.x = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop x offset: '{value}'")))?),
                 "y" => crop.y = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop y offset: '{value}'")))?),
-                _ => {},
+                _ => return Err(CropParseError(format!("Unknown crop key: '{key}'"))),
             }
         }
 
@@ -75,5 +75,58 @@ impl<'de> Deserialize<'de> for Crop {
         }
 
         d.deserialize_str(V)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_documented_format_parses_into_every_field() {
+        assert_eq!(
+            "ar:16/9|w:50|h:60|g:top-left|x:-5|y:7".parse::<Crop>().unwrap(),
+            Crop {
+                width: Some(50),
+                height: Some(60),
+                aspect_ratio: Some(AspectRatio::Value(16.0 / 9.0)),
+                gravity: Some(ImageGravity::TopLeft),
+                x: Some(-5),
+                y: Some(7),
+            },
+        );
+    }
+
+    #[test]
+    fn long_key_names_are_accepted() {
+        assert_eq!(
+            "width:50|height:60|aspect_ratio:square|gravity:center".parse::<Crop>().unwrap(),
+            Crop {
+                width: Some(50),
+                height: Some(60),
+                aspect_ratio: Some(AspectRatio::Value(1.0)),
+                gravity: Some(ImageGravity::Center),
+                x: None,
+                y: None,
+            },
+        );
+    }
+
+    #[test]
+    fn an_aspect_ratio_alone_is_a_valid_crop() {
+        assert_eq!("ar:16/9".parse::<Crop>().unwrap().aspect_ratio, Some(AspectRatio::Value(16.0 / 9.0)));
+    }
+
+    #[test]
+    fn a_crop_without_any_dimension_is_rejected() {
+        assert!("".parse::<Crop>().is_err());
+        assert!("g:center|x:5".parse::<Crop>().is_err());
+    }
+
+    #[test]
+    fn malformed_segments_are_rejected() {
+        assert!("w".parse::<Crop>().is_err());
+        assert!("w:abc".parse::<Crop>().is_err());
+        assert!("w:50|nope:1".parse::<Crop>().is_err());
     }
 }

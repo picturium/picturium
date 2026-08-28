@@ -1,6 +1,7 @@
 mod autorotate;
 mod background;
 mod canvas;
+mod crop;
 mod filter;
 mod finish;
 mod loader;
@@ -28,7 +29,10 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
 
     update_source_dimensions(request, &image);
 
-    // TODO > Crop
+    // Crop
+    image = crop::process(request, image)?;
+
+    update_source_dimensions(request, &image);
 
     // Resize
     image = resize::process(request, image)?;
