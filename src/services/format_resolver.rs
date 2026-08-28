@@ -36,7 +36,7 @@ pub fn resolve_output_format(headers: &HeaderMap, state: &AppState, parameters: 
 pub fn resolve_intermediate_format(source: &Source) -> Option<VipsInputFormat> {
     match source.format {
         InputFormat::Video(_) => Some(VipsInputFormat::Png),
-        InputFormat::Office(_) => Some(VipsInputFormat::Pdf),
+        InputFormat::Office(_) | InputFormat::Vector(_) => Some(VipsInputFormat::Pdf),
         _ => None,
     }
 }

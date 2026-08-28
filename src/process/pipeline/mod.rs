@@ -1,6 +1,7 @@
 mod office;
 pub(crate) mod request;
 pub(crate) mod svg;
+pub(crate) mod vector;
 mod video;
 mod vips;
 
@@ -45,11 +46,12 @@ impl ResolvedSource {
     }
 }
 
-/// Resolve the source path, running async pre-pipelines (office, video) as needed.
+/// Resolve the source path, running async pre-pipelines (office, video, vector) as needed.
 pub async fn resolve_source_path(request: &PipelineRequest<'_>) -> Result<ResolvedSource> {
     match request.source.format {
         InputFormat::Office(_) => office::process(request).await,
         InputFormat::Video(_) => video::process(request).await,
+        InputFormat::Vector(_) => vector::process(request).await,
         _ => Ok(ResolvedSource::existing(request.source.path.clone())),
     }
 }

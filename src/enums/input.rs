@@ -7,6 +7,7 @@ pub enum InputFormat {
     Vips(VipsInputFormat),
     Office(OfficeInputFormat),
     Video(VideoInputFormat),
+    Vector(VectorInputFormat),
     #[default]
     Unsupported,
 }
@@ -17,6 +18,7 @@ impl fmt::Display for InputFormat {
             Self::Vips(format) => format.fmt(f),
             Self::Office(format) => format.fmt(f),
             Self::Video(format) => format.fmt(f),
+            Self::Vector(format) => format.fmt(f),
             Self::Unsupported => f.write_str("unsupported"),
         }
     }
@@ -37,9 +39,6 @@ pub enum VipsInputFormat {
     Jxl,
     Pdf,
     Svg,
-    // Ai,
-    Eps,
-    // Cdr,
     Psd,
     Bmp,
     Raw,
@@ -51,6 +50,17 @@ pub enum OfficeInputFormat {
     Doc,
     Ppt,
     Xls,
+}
+
+/// Formats Inkscape converts before anything else can read them.
+#[derive(Debug, Clone, Copy, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum VectorInputFormat {
+    Ai,
+    Cdr,
+    Cmx,
+    Cdt,
+    Eps,
 }
 
 #[derive(Debug, Clone, Copy, Display)]
@@ -111,6 +121,9 @@ pub fn get_input_mime(path: &Path) -> &'static str {
         "pdf" => "application/pdf",
         "svg" | "svgz" => "image/svg+xml",
         "eps" => "application/postscript",
+        "ai" => "application/illustrator",
+        "cdr" | "cdt" => "application/vnd.corel-draw",
+        "cmx" => "image/x-cmx",
         "psd" => "image/vnd.adobe.photoshop",
         "bmp" => "image/bmp",
         "raw" | "rw2" | "raf" | "pef" | "orf" | "nrw" | "nef" | "dng" | "cr2" | "cr3" | "crw" | "arw" => "image/raw",
@@ -177,6 +190,15 @@ mod tests {
         assert!(is_gzipped_svg(Path::new("LOGO.SVG.GZ")));
         assert!(!is_gzipped_svg(Path::new("logo.svg")));
         assert!(!is_gzipped_svg(Path::new("archive.gz")));
+    }
+
+    #[test]
+    fn inkscape_formats_have_their_own_media_types() {
+        assert_eq!(get_input_mime(Path::new("logo.ai")), "application/illustrator");
+        assert_eq!(get_input_mime(Path::new("logo.cdr")), "application/vnd.corel-draw");
+        assert_eq!(get_input_mime(Path::new("logo.cdt")), "application/vnd.corel-draw");
+        assert_eq!(get_input_mime(Path::new("logo.cmx")), "image/x-cmx");
+        assert_eq!(get_input_mime(Path::new("logo.eps")), "application/postscript");
     }
 
     #[test]

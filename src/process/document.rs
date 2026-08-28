@@ -14,6 +14,7 @@ use crate::process::download::apply_disposition;
 use crate::process::outline;
 use crate::process::pipeline;
 use crate::process::pipeline::request::PipelineRequest;
+use crate::process::pipeline::ResolvedSource;
 use crate::process::raw;
 use crate::services::http_cache::{self, Validators};
 
@@ -27,31 +28,57 @@ pub(super) async fn serve(headers: &HeaderMap, request: &PipelineRequest<'_>, va
 }
 
 async fn serve_svg(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
-    if !matches!(request.source.format, InputFormat::Vips(VipsInputFormat::Svg)) {
-        return Ok(unsupported(&OutputFormat::Svg, request));
-    }
+    let (path, name) = match request.source.format {
+        InputFormat::Vips(VipsInputFormat::Svg) => {
+            let name = request
+                .source
+                .path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("image.svg")
+                .to_owned();
 
-    let name = request
-        .source
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("image.svg");
+            (SvgSource::Original(request.source.path.as_path()), name)
+        }
+        InputFormat::Vector(_) => {
+            let resolved = pipeline::vector::process_svg(request).await?;
+            let name = document_name(request, "svg");
+
+            (SvgSource::Converted(resolved), name)
+        }
+        _ => return Ok(unsupported(&OutputFormat::Svg, request)),
+    };
 
     raw::serve_validated(
         headers,
-        &request.source.path,
+        path.path(),
         &request.parameters.download,
-        name,
+        &name,
         cache_control,
         validators,
         request.forced,
     ).await
 }
 
+enum SvgSource<'a> {
+    Original(&'a Path),
+    Converted(ResolvedSource),
+}
+
+impl SvgSource<'_> {
+    fn path(&self) -> &Path {
+        match self {
+            Self::Original(path) => path,
+            Self::Converted(resolved) => resolved.path(),
+        }
+    }
+}
+
 async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validators: Option<&Validators>, cache_control: &str) -> Result<Response> {
     let resolved = match request.source.format {
-        InputFormat::Vips(VipsInputFormat::Pdf) | InputFormat::Office(_) => {
+        InputFormat::Vips(VipsInputFormat::Pdf)
+        | InputFormat::Office(_)
+        | InputFormat::Vector(_) => {
             pipeline::resolve_source_path(request).await?
         }
         InputFormat::Vips(VipsInputFormat::Svg) => pipeline::svg::process(request).await?,
@@ -59,7 +86,7 @@ async fn serve_pdf(headers: &HeaderMap, request: &PipelineRequest<'_>, validator
     };
 
     let path = resolved.path();
-    let name = get_pdf_name(request);
+    let name = document_name(request, "pdf");
 
     let Some(pages) = request.parameters.pages.as_deref() else {
         return raw::serve_validated(
@@ -143,7 +170,7 @@ fn get_page_subset(path: &Path, pages: &[u32]) -> Result<Subset> {
     Ok(Subset::Pages(buffer))
 }
 
-fn get_pdf_name(request: &PipelineRequest<'_>) -> String {
+fn document_name(request: &PipelineRequest<'_>, extension: &str) -> String {
     let stem = request
         .source
         .path
@@ -151,7 +178,7 @@ fn get_pdf_name(request: &PipelineRequest<'_>) -> String {
         .and_then(|stem| stem.to_str())
         .unwrap_or("document");
 
-    format!("{stem}.pdf")
+    format!("{stem}.{extension}")
 }
 
 fn respond(pdf: Bytes, download: &Download, name: &str, validators: Option<&Validators>, cache_control: &str) -> Response {

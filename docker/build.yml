@@ -51,7 +51,7 @@ COPY --from=build /usr/share/mime /usr/share/mime
 COPY --from=build /etc /etc
 COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/bin/picturium
 
-RUN apt update -y && apt install -y --no-install-recommends ffmpeg && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt update -y && apt install -y --no-install-recommends ffmpeg inkscape ghostscript python3-lxml python3-numpy python3-cssselect && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ldconfig
 USER picturium

@@ -18,13 +18,13 @@ Input formats // from InputFormat enum
 - [x] jxl
 - [x] pdf
 - [x] svg
-- [x] eps
+- [x] eps (inkscape)
 - [x] psd
 - [x] bmp
 - [x] raw (raw, rw2, raf, pef, orf, nrw, nef, dng, cr2, cr3, crw, arw)
 - [x] office (doc, ppt, xls)
-- [ ] ai (inkscape)
-- [ ] cdr (inkscape)
+- [x] ai (inkscape)
+- [x] cdr (inkscape: cdr, cmx, cdt)
 - [x] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg, mts, hevc)
 
 Output formats
@@ -64,14 +64,15 @@ Output formats
 - [x] `f` (string): output format (auto, jpg / jpeg, png, webp, avif, jxl, pdf, svg) [default: auto]
   - `auto` picks the first entry of `output.format_priority` the client accepts, falling back to webp
   - `pdf` and `svg` are **document** formats, not image formats: libvips can rasterize them but cannot write them, so the document itself is served
-    - `f=svg` requires an SVG source (`.svg` / `.svgz`), otherwise 415
-    - `f=pdf` requires a PDF, office document or SVG source, otherwise 415; an office document is converted with LibreOffice first, an SVG is converted to a single-page vector PDF
+    - `f=svg` requires an SVG source (`.svg` / `.svgz`) or a **vector** source (`.ai`, `.cdr`, `.cmx`, `.cdt`, `.eps`), otherwise 415; an SVG is served as-is, a vector source is converted with Inkscape to plain SVG
+    - `f=pdf` requires a PDF, office document, SVG or **vector** source, otherwise 415; an office document is converted with LibreOffice first, a vector source with Inkscape, an SVG is converted to a single-page vector PDF
       - an SVG's `<image>` elements are embedded only when they are inlined as `data:` URIs; file references are followed only if `svg.allow_local_resources` is on, and even then only inside the data directory
     - `f=pdf` with `pages` returns a PDF of exactly those pages (`pages=1,4` gives two pages, not 4); pages past the end are ignored, a selection with none of them is 400
     - sizing, quality, filter, and metadata parameters do not apply to document responses, the same as under `original`; `dpi` and `style` are the exception, they apply to an SVG converted to PDF
   - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
-- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
+- [x] `dpi` (int): default DPI for loading images (eg. SVG images) (default: 72); a **vector** source is converted to PDF before it is loaded, so `dpi` applies to it exactly as it does to a PDF source; under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
 - [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most 1000 pages; under `f=pdf` it selects the pages of the returned PDF instead
+  - a **vector** source is converted to a PDF first, so `pages` selects pages of that PDF; Inkscape produces a single page for the formats it imports, so a selection other than `1` is normally out of range
   - for a **video** source it is a frame number instead, and only the first one is used (`pages=250` is the 250th frame); an exact frame means decoding every frame before it, so `t` is much more performant on a long video
 - [x] `t`|`time` (string): position of the frame to extract from a **video** source, in seconds (`t=5`, `t=5.25`) or as a timecode (`t=00:01:30`) [default: `video.default_time`]; takes precedence over `pages`, and seeks to the nearest keyframe, so it is more performant on a long video as `page`
   - when a position past the end of the video is specified, error 500 is returned

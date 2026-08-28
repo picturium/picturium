@@ -107,6 +107,12 @@ load_dpi = 72
 conversion_timeout = 30
 
 
+[vector]
+# Timeout for the Inkscape conversion of an .ai / .cdr / .cmx / .cdt / .eps source
+# in seconds [default: 30]
+conversion_timeout = 30
+
+
 [video]
 # Frame to extract when the request asks for none, in seconds or as an ffmpeg
 # timecode [default: "1"]. A second in dodges most black or fading-in first

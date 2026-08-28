@@ -1,6 +1,7 @@
 use crate::config::SharedConfig;
 use crate::enums::input::{
-    InputFormat, OfficeInputFormat, VideoInputFormat, VipsInputFormat, is_gzipped_svg,
+    InputFormat, OfficeInputFormat, VectorInputFormat, VideoInputFormat, VipsInputFormat,
+    is_gzipped_svg,
 };
 use crate::params::RequestParams;
 use anyhow::{Result, anyhow};
@@ -94,9 +95,11 @@ impl Source {
             "jxl" => InputFormat::Vips(VipsInputFormat::Jxl),
             "pdf" => InputFormat::Vips(VipsInputFormat::Pdf),
             "svg" | "svgz" => InputFormat::Vips(VipsInputFormat::Svg),
-            // "ai" => InputFormat::Vips(VipsInputFormat::Ai),
-            "eps" => InputFormat::Vips(VipsInputFormat::Eps),
-            // "cdr" => InputFormat::Vips(VipsInputFormat::Cdr),
+            "ai" => InputFormat::Vector(VectorInputFormat::Ai),
+            "cdr" => InputFormat::Vector(VectorInputFormat::Cdr),
+            "cmx" => InputFormat::Vector(VectorInputFormat::Cmx),
+            "cdt" => InputFormat::Vector(VectorInputFormat::Cdt),
+            "eps" => InputFormat::Vector(VectorInputFormat::Eps),
             "psd" => InputFormat::Vips(VipsInputFormat::Psd),
             "bmp" => InputFormat::Vips(VipsInputFormat::Bmp),
             "raw" | "rw2" | "raf" | "pef" | "orf" | "nrw" | "nef" | "dng" | "cr2" | "cr3"
@@ -143,6 +146,19 @@ mod tests {
             Source::get_format(&PathBuf::from("logo.svgz")),
             InputFormat::Vips(VipsInputFormat::Svg)
         ));
+    }
+
+    #[test]
+    fn inkscape_formats_are_detected_as_vector() {
+        for name in ["logo.ai", "logo.cdr", "logo.cmx", "logo.cdt", "logo.eps", "LOGO.AI"] {
+            assert!(
+                matches!(
+                    Source::get_format(&PathBuf::from(name)),
+                    InputFormat::Vector(_)
+                ),
+                "{name} should be a vector source"
+            );
+        }
     }
 
     #[test]
