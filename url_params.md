@@ -1,5 +1,7 @@
 # URL Parameters
 
+Enum values are matched case-insensitively (`g=Center` is `g=center`), everywhere in the query string.
+
 - [x] Caching
   - [x] Memory cache (bounded by entry count and per-entry size)
   - [x] Disk cache (bounded effective capacity; oversized / evicted memory values)
@@ -41,11 +43,15 @@ Output formats
 - [ ] `w` (int): width of the output image in pixels [default: 0]
 - [ ] `h` (int): height of the output image in pixels [default: 0]
 - [x] `ar` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
+  - a custom ratio is a fraction, so `ar=1` is rejected while `ar=1/1` and `ar=square` are not
   - with only one of `w` / `h`, the other axis is derived from the ratio
   - `ar` on its own takes the largest area of that ratio that fits the image
   - with both `w` and `h` set the box is already determined, so `ar` is ignored
   - the ratio defines the requested box; `fit` then decides how the image fills it (`cover` crops, `contain` pads, `force` stretches)
-- [ ] `g` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
+- [x] `g` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
+  - under `fit=cover` it picks which part of the image the crop keeps; under `fit=contain` it places the image on the padded canvas
+  - `attention` and `entropy` let libvips pick the region (smart crop); an **animated** source falls back to `center`, because a smart crop would land somewhere else on every frame
+  - the `crop=` sub-parameter has its own `g`, defaulting to `image.crop_gravity` rather than to this one
 - [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
 - [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
 - [x] `upsize` (bool): enable image upsizing [default: ENV]
@@ -53,7 +59,7 @@ Output formats
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
 - [x] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
   - [x] `contain`: preserve the image aspect ratio inside the requested width and height
-  - [x] `cover`: fill the requested width and height, cropping the overflow (`g` gravity, no `attention` / `entropy` support yet)
+  - [x] `cover`: fill the requested width and height, cropping the overflow (`g` gravity)
   - [x] `force`: stretch the image to the requested width and height
   - with `upsize=false` the requested box is shrunk to fit the original, so the output is never larger than the original image
     - with `ar` set the box is shrunk uniformly so the requested ratio survives; without it each axis is capped on its own

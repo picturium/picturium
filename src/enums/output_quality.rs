@@ -40,7 +40,7 @@ impl<'de> Deserialize<'de> for OutputQuality {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                match v {
+                match v.to_ascii_lowercase().as_str() {
                     "auto" => Ok(OutputQuality::Auto),
                     "low" => Ok(OutputQuality::Low),
                     "medium" => Ok(OutputQuality::Medium),

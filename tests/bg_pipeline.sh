@@ -47,6 +47,35 @@ printf '%s\n' \
     '<image href="reference.png" width="40" height="20"/>' \
     '</svg>' > "${work_dir}/data/referenced.svg"
 
+# Four solid stripes, so the part of the image a cover crop kept can be read off
+# two pixels. 80x40 has its excess on the x axis, 40x80 on the y axis.
+printf '%s\n' \
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40">' \
+    '<rect x="0" width="20" height="40" fill="#ff0000"/>' \
+    '<rect x="20" width="20" height="40" fill="#00ff00"/>' \
+    '<rect x="40" width="20" height="40" fill="#0000ff"/>' \
+    '<rect x="60" width="20" height="40" fill="#ffffff"/>' \
+    '</svg>' > "${work_dir}/stripes.svg"
+vips copy "${work_dir}/stripes.svg" "${work_dir}/data/stripes.png"
+
+printf '%s\n' \
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="80">' \
+    '<rect y="0" width="40" height="20" fill="#ff0000"/>' \
+    '<rect y="20" width="40" height="20" fill="#00ff00"/>' \
+    '<rect y="40" width="40" height="20" fill="#0000ff"/>' \
+    '<rect y="60" width="40" height="20" fill="#ffffff"/>' \
+    '</svg>' > "${work_dir}/stripes-tall.svg"
+vips copy "${work_dir}/stripes-tall.svg" "${work_dir}/data/stripes-tall.png"
+
+# Flat grey with one high-contrast blob near the right edge: a centre crop misses
+# it, a smart crop (g=attention / g=entropy) has to find it.
+printf '%s\n' \
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' \
+    '<rect width="200" height="100" fill="#808080"/>' \
+    '<circle cx="185" cy="50" r="12" fill="#ff0000"/>' \
+    '</svg>' > "${work_dir}/blob.svg"
+vips copy "${work_dir}/blob.svg" "${work_dir}/data/blob.png"
+
 printf '%s\n' \
     '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' \
     '<rect width="10" height="10" fill="rgba(0,0,0,0)"/>' \
@@ -238,6 +267,87 @@ assert_pixel "${work_dir}/gravity.png" 99 99 255 0 0
 
 # Without upsizing the requested dimensions are a per-axis limit: a 40x20 source
 # already fits in a 100x100 box, so it is served untouched and unpadded.
+# --- gravity (`g`) ----------------------------------------------------------
+# Under fit=cover `g` picks which part of the image survives the crop. The 80x40
+# source scales to 40x20 for a 20x20 box, so each stripe is 10px wide and the
+# crop keeps two of them.
+request stripes.png 'w=20&h=20&fit=cover&g=left&f=png' "${work_dir}/cover-left.png"
+assert_dimensions "${work_dir}/cover-left.png" 20 20
+assert_pixel "${work_dir}/cover-left.png" 5 10 255 0 0
+assert_pixel "${work_dir}/cover-left.png" 15 10 0 255 0
+
+request stripes.png 'w=20&h=20&fit=cover&g=right&f=png' "${work_dir}/cover-right.png"
+assert_pixel "${work_dir}/cover-right.png" 5 10 0 0 255
+assert_pixel "${work_dir}/cover-right.png" 15 10 255 255 255
+
+request stripes.png 'w=20&h=20&fit=cover&g=center&f=png' "${work_dir}/cover-center.png"
+assert_pixel "${work_dir}/cover-center.png" 5 10 0 255 0
+assert_pixel "${work_dir}/cover-center.png" 15 10 0 0 255
+
+# A corner gravity only has an axis to act on where the crop has excess, so on
+# this source top-left reads as left and bottom-right as right.
+request stripes.png 'w=20&h=20&fit=cover&g=top-left&f=png' "${work_dir}/cover-top-left.png"
+assert_pixel "${work_dir}/cover-top-left.png" 5 10 255 0 0
+request stripes.png 'w=20&h=20&fit=cover&g=bottom-right&f=png' "${work_dir}/cover-bottom-right.png"
+assert_pixel "${work_dir}/cover-bottom-right.png" 15 10 255 255 255
+
+# The same on the other axis.
+request stripes-tall.png 'w=20&h=20&fit=cover&g=top&f=png' "${work_dir}/cover-top.png"
+assert_pixel "${work_dir}/cover-top.png" 10 5 255 0 0
+assert_pixel "${work_dir}/cover-top.png" 10 15 0 255 0
+request stripes-tall.png 'w=20&h=20&fit=cover&g=bottom&f=png' "${work_dir}/cover-bottom.png"
+assert_pixel "${work_dir}/cover-bottom.png" 10 5 0 0 255
+assert_pixel "${work_dir}/cover-bottom.png" 10 15 255 255 255
+request stripes-tall.png 'w=20&h=20&fit=cover&g=center&f=png' "${work_dir}/cover-center-tall.png"
+assert_pixel "${work_dir}/cover-center-tall.png" 10 5 0 255 0
+
+# g=attention and g=entropy hand the choice to libvips, which has to land on the
+# blob a centre crop cuts off.
+request blob.png 'w=100&h=100&fit=cover&g=center&f=png' "${work_dir}/smart-center.png"
+assert_pixel "${work_dir}/smart-center.png" 95 50 128 128 128
+request blob.png 'w=100&h=100&fit=cover&g=attention&f=png' "${work_dir}/smart-attention.png"
+assert_dimensions "${work_dir}/smart-attention.png" 100 100
+assert_pixel "${work_dir}/smart-attention.png" 95 50 255 0 0
+request blob.png 'w=100&h=100&fit=cover&g=entropy&f=png' "${work_dir}/smart-entropy.png"
+assert_pixel "${work_dir}/smart-entropy.png" 95 50 255 0 0
+
+# The animated source falls back to the centre instead of drifting frame to
+# frame; that lives in animation_pipeline.sh, which can count frames.
+
+# Enum values are case-insensitive, and an unknown one is a client error.
+request stripes.png 'w=20&h=20&fit=COVER&g=RIGHT&f=PNG' "${work_dir}/cover-upper.png"
+cmp "${work_dir}/cover-upper.png" "${work_dir}/cover-right.png"
+request stripes.png 'w=20&h=20&fit=cover&g=TOP-LEFT&f=png' "${work_dir}/cover-upper-corner.png"
+cmp "${work_dir}/cover-upper-corner.png" "${work_dir}/cover-top-left.png"
+assert_status stripes.png 'w=20&h=20&g=middle' 400
+assert_status stripes.png 'w=20&h=20&g=' 400
+echo "  gravity values are case-insensitive"
+
+# Under fit=contain `g` places the image on the padded canvas instead. The 80x40
+# source spans a 60x60 box across, so its padding sits above and below.
+request stripes.png 'w=60&h=60&fit=contain&upsize=true&g=top&bg=ff00ff&f=png' "${work_dir}/contain-top.png"
+assert_dimensions "${work_dir}/contain-top.png" 60 60
+assert_pixel "${work_dir}/contain-top.png" 7 5 255 0 0
+assert_pixel "${work_dir}/contain-top.png" 7 59 255 0 255
+request stripes.png 'w=60&h=60&fit=contain&upsize=true&g=bottom&bg=ff00ff&f=png' "${work_dir}/contain-bottom.png"
+assert_pixel "${work_dir}/contain-bottom.png" 7 0 255 0 255
+assert_pixel "${work_dir}/contain-bottom.png" 7 55 255 0 0
+
+# The 40x80 source spans the box the other way, so its padding is left and right.
+request stripes-tall.png 'w=60&h=60&fit=contain&upsize=true&g=left&bg=ff00ff&f=png' "${work_dir}/contain-left.png"
+assert_pixel "${work_dir}/contain-left.png" 5 5 255 0 0
+assert_pixel "${work_dir}/contain-left.png" 59 5 255 0 255
+request stripes-tall.png 'w=60&h=60&fit=contain&upsize=true&g=right&bg=ff00ff&f=png' "${work_dir}/contain-right.png"
+assert_pixel "${work_dir}/contain-right.png" 0 5 255 0 255
+assert_pixel "${work_dir}/contain-right.png" 55 5 255 0 0
+
+# `g` has nothing to place under fit=force, and padding is positioned by its own
+# per-side values, so neither reacts to it.
+request stripes.png 'w=20&h=20&fit=force&g=left&f=png' "${work_dir}/force-gravity.png"
+assert_dimensions "${work_dir}/force-gravity.png" 20 20
+assert_pixel "${work_dir}/force-gravity.png" 2 10 255 0 0
+assert_pixel "${work_dir}/force-gravity.png" 17 10 255 255 255
+
 request source.png 'w=100&h=100&fit=contain&upsize=false&bg=ff0000&f=png' "${work_dir}/no-upsize.png"
 assert_dimensions "${work_dir}/no-upsize.png" 40 20
 assert_pixel "${work_dir}/no-upsize.png" 20 10 0 0 255

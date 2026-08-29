@@ -20,7 +20,7 @@ impl<'de> Deserialize<'de> for Dpi {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                match v {
+                match v.to_ascii_lowercase().as_str() {
                     "auto" => Ok(Dpi::Auto),
                     _ => match v.parse::<u16>() {
                         Ok(value) if value > 0 && value <= 3000 => Ok(Dpi::Value(value)),

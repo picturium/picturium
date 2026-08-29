@@ -8,7 +8,8 @@ use crate::services::size::{calculate_contain_canvas_size, calculate_cover_crop_
 use anyhow::{Context, Result, anyhow};
 use picturium_libvips::gravity::VipsGravity;
 use picturium_libvips::{
-    EmbedOptions, VipsColors, VipsCompassDirection, VipsImage, VipsInterpretation, VipsOperations,
+    EmbedOptions, VipsColors, VipsCompassDirection, VipsCrop, VipsImage, VipsInteresting,
+    VipsInterpretation, VipsOperations,
 };
 
 pub(super) fn process(request: &PipelineRequest, image: VipsImage) -> Result<VipsImage> {
@@ -21,19 +22,26 @@ pub(super) fn process(request: &PipelineRequest, image: VipsImage) -> Result<Vip
         return Ok(image);
     }
 
-    pages::per_page(image, |image| place(request, image, cover, canvas))
+    let gravity = resolve_gravity(request.parameters.gravity, pages::page_count(&image));
+
+    pages::per_page(image, |image| place(request, image, gravity, cover, canvas))
 }
 
-fn place(request: &PipelineRequest, mut image: VipsImage, cover: Option<(i32, i32)>, canvas: Option<(i32, i32)>) -> Result<VipsImage> {
+fn resolve_gravity(gravity: ImageGravity, pages: i32) -> ImageGravity {
+    match gravity {
+        ImageGravity::Attention | ImageGravity::Entropy if pages > 1 => ImageGravity::Center,
+        gravity => gravity,
+    }
+}
+
+fn place(request: &PipelineRequest, mut image: VipsImage, gravity: ImageGravity, cover: Option<(i32, i32)>, canvas: Option<(i32, i32)>) -> Result<VipsImage> {
     if let Some((width, height)) = cover && (width, height) != image.get_dimensions() {
-        image = image
-            .with_gravity(
-                compass_direction(request.parameters.gravity),
-                width,
-                height,
-                None,
-            )
-            .map_err(|error| anyhow!("failed to crop cover image: {error}"))?;
+        image = match gravity {
+            ImageGravity::Attention => image.smartcrop(width, height, VipsInteresting::Attention),
+            ImageGravity::Entropy => image.smartcrop(width, height, VipsInteresting::Entropy),
+            gravity => image.with_gravity(compass_direction(gravity), width, height, None),
+        }
+        .map_err(|error| anyhow!("failed to crop cover image: {error}"))?;
     }
 
     if let Some(canvas) = canvas {
@@ -49,7 +57,7 @@ fn place(request: &PipelineRequest, mut image: VipsImage, cover: Option<(i32, i3
             ));
         }
 
-        let offset = gravity_offset(request.parameters.gravity, canvas, content);
+        let offset = gravity_offset(gravity, canvas, content);
         image = embed(
             image,
             offset,
@@ -205,6 +213,14 @@ mod tests {
             compass_direction(ImageGravity::Center),
             VipsCompassDirection::Centre
         ));
+    }
+
+    #[test]
+    fn smart_gravity_survives_a_still_and_falls_back_to_the_centre_on_an_animation() {
+        assert_eq!(resolve_gravity(ImageGravity::Attention, 1), ImageGravity::Attention);
+        assert_eq!(resolve_gravity(ImageGravity::Entropy, 1), ImageGravity::Entropy);
+        assert_eq!(resolve_gravity(ImageGravity::Attention, 12), ImageGravity::Center);
+        assert_eq!(resolve_gravity(ImageGravity::TopLeft, 12), ImageGravity::TopLeft);
     }
 
     #[test]

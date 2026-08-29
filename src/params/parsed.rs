@@ -131,6 +131,18 @@ mod tests {
         Parameters::new(&Arc::new(crate::config::Config::default()), params)
     }
 
+    fn resolve_with_gravity(
+        gravity: ImageGravity,
+        crop_gravity: ImageGravity,
+        params: RequestParams,
+    ) -> Parameters {
+        let mut config = crate::config::Config::default();
+        config.image.gravity = gravity;
+        config.image.crop_gravity = crop_gravity;
+
+        Parameters::new(&Arc::new(config), params)
+    }
+
     #[test]
     fn the_top_level_pages_parameter_wins_over_the_deprecated_thumb_page() {
         let parameters = resolve(RequestParams {
@@ -153,11 +165,40 @@ mod tests {
     }
 
     #[test]
+    fn the_gravity_falls_back_to_the_config_default() {
+        let parameters = resolve_with_gravity(
+            ImageGravity::Left,
+            ImageGravity::Center,
+            RequestParams::default(),
+        );
+
+        assert_eq!(parameters.gravity, ImageGravity::Left);
+    }
+
+    #[test]
+    fn an_explicit_gravity_wins_over_the_config_default() {
+        let parameters = resolve_with_gravity(
+            ImageGravity::Left,
+            ImageGravity::Center,
+            RequestParams {
+                gravity: Some(ImageGravity::BottomRight),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(parameters.gravity, ImageGravity::BottomRight);
+    }
+
+    #[test]
     fn the_crop_gravity_falls_back_to_the_dedicated_config_default() {
-        let parameters = resolve(RequestParams {
-            crop: Some("w:50".parse().unwrap()),
-            ..Default::default()
-        });
+        let parameters = resolve_with_gravity(
+            ImageGravity::TopLeft,
+            ImageGravity::Center,
+            RequestParams {
+                crop: Some("w:50".parse().unwrap()),
+                ..Default::default()
+            },
+        );
 
         assert_eq!(parameters.crop.unwrap().gravity, Some(ImageGravity::Center));
     }

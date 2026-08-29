@@ -25,7 +25,7 @@ impl FromStr for AspectRatio {
     type Err = AspectRatioParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
+        match s.trim().to_ascii_lowercase().as_str() {
             "auto" => Ok(Self::Auto),
             "video" => Ok(Self::Value(16.0 / 9.0)),
             "square" => Ok(Self::Value(1.0)),

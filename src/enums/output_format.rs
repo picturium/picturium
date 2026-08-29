@@ -8,6 +8,7 @@ pub enum OutputFormat {
     #[default]
     Auto,
     #[serde(alias = "jpg")]
+    #[strum(serialize = "jpeg", serialize = "jpg")]
     Jpeg,
     Png,
     Gif,

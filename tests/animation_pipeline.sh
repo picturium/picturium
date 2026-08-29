@@ -54,6 +54,24 @@ vips gifsave "${work_dir}/strip.v" "${work_dir}/data/animated.gif" --page-height
 vips webpsave "${work_dir}/strip.v" "${work_dir}/data/animated.webp" --page-height 100 --lossless
 cp "${work_dir}/f0.png" "${work_dir}/data/still.png"
 
+# Two frames that differ only in their background, each with the same
+# high-contrast blob near the right edge: a centre crop cuts the blob off, a
+# smart crop would keep it, and the two backgrounds tell the frames apart.
+blob_frame() {
+    local name="$1" fill="$2"
+    printf '%s\n' \
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' \
+        "<rect width=\"200\" height=\"100\" fill=\"${fill}\"/>" \
+        '<circle cx="185" cy="50" r="12" fill="#ff0000"/>' \
+        '</svg>' > "${work_dir}/${name}.svg"
+    vips copy "${work_dir}/${name}.svg" "${work_dir}/${name}.png"
+}
+
+blob_frame b0 '#808080'
+blob_frame b1 '#909090'
+vips arrayjoin "${work_dir}/b0.png ${work_dir}/b1.png" "${work_dir}/blob-strip.v" --across 1
+vips gifsave "${work_dir}/blob-strip.v" "${work_dir}/data/blob-animated.gif" --page-height 100
+
 # Three seconds of moving test pattern, to extract a clip from.
 ffmpeg -nostdin -v error -f lavfi -i testsrc=duration=3:size=100x100:rate=25 \
     -pix_fmt yuv420p -y "${work_dir}/data/clip.mp4"
@@ -169,6 +187,25 @@ check "frame count" "$(meta "${out}.gif[n=-1]" n-pages)" "4"
 echo "an animated webp source survives"
 request_file animated.webp "f=gif" "${out}-webp-in.gif"
 check "frame count" "$(meta "${out}-webp-in.gif[n=-1]" n-pages)" "4"
+
+echo "a smart gravity falls back to the centre on an animation"
+# Smart crop is picked per image, so on an animation it would land somewhere
+# else on every frame. Both frames must keep their centre, blob cut off.
+request_file blob-animated.gif "w=100&h=100&fit=cover&g=attention&f=gif" "${out}-smart.gif"
+check "frame count" "$(meta "${out}-smart.gif[n=-1]" n-pages)" "2"
+vips copy "${out}-smart.gif[n=-1]" "${out}-smart.v"
+assert_pixel "frame 1 kept its centre" "${out}-smart.v" 95 50 128 128 128
+assert_pixel "frame 2 kept its centre" "${out}-smart.v" 95 150 144 144 144
+
+request_file blob-animated.gif "w=100&h=100&fit=cover&g=entropy&f=gif" "${out}-smart-entropy.gif"
+vips copy "${out}-smart-entropy.gif[n=-1]" "${out}-smart-entropy.v"
+assert_pixel "entropy falls back too" "${out}-smart-entropy.v" 95 50 128 128 128
+
+# The compass gravities do apply per frame, so g=right keeps the blob on both.
+request_file blob-animated.gif "w=100&h=100&fit=cover&g=right&f=gif" "${out}-right.gif"
+vips copy "${out}-right.gif[n=-1]" "${out}-right.v"
+assert_pixel "frame 1 kept the blob" "${out}-right.v" 95 50 255 0 0
+assert_pixel "frame 2 kept the blob" "${out}-right.v" 95 150 255 0 0
 
 echo "a format that cannot animate gets the first frame"
 for format in jpeg png avif jxl; do

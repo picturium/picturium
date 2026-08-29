@@ -28,7 +28,7 @@ impl FromStr for Rotate {
     type Err = RotateParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
+        match s.trim().to_ascii_lowercase().as_str() {
             "0" | "no" => Ok(Self::No),
             "90" | "left" | "anticlockwise" => Ok(Self::Left),
             "180" | "bottom-up" => Ok(Self::BottomUp),

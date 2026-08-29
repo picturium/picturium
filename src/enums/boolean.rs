@@ -27,7 +27,7 @@ impl<'de> Deserialize<'de> for Boolean {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                match v {
+                match v.to_ascii_lowercase().as_str() {
                     "true" | "" | "1" => Ok(Boolean::True),
                     "false" | "0" => Ok(Boolean::False),
                     _ => Err(de::Error::custom("invalid value for boolean parameter")),

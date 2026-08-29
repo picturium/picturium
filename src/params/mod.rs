@@ -45,7 +45,9 @@ use crate::params::style::deserialize_style;
 use crate::params::thumbnail::Thumbnail;
 use crate::params::time::Time;
 use aspect_ratio::AspectRatio;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use std::fmt::Display;
+use std::str::FromStr;
 use crate::enums::force::Force;
 use crate::params::watermark::Watermark;
 
@@ -58,15 +60,18 @@ pub struct RequestParams {
     pub height: Option<u16>,
     #[serde(alias = "ar")]
     pub aspect_ratio: Option<AspectRatio>,
-    #[serde(alias = "g")]
+    #[serde(alias = "g", default, deserialize_with = "deserialize_enum")]
     pub gravity: Option<ImageGravity>,
     #[serde(default, deserialize_with = "deserialize_dpr")]
     pub dpr: Option<f32>,
     #[serde(default, deserialize_with = "deserialize_scale")]
     pub scale: Option<f32>,
     pub upsize: Option<Upsize>,
+    #[serde(default, deserialize_with = "deserialize_enum")]
     pub extend: Option<ImageExtend>,
+    #[serde(default, deserialize_with = "deserialize_enum")]
     pub resample: Option<ImageResample>,
+    #[serde(default, deserialize_with = "deserialize_enum")]
     pub fit: Option<ImageFit>,
     #[serde(alias = "pad")]
     pub padding: Option<Padding>,
@@ -83,7 +88,7 @@ pub struct RequestParams {
     pub original: Option<Original>,
     #[serde(alias = "q")]
     pub quality: Option<OutputQuality>,
-    #[serde(alias = "f")]
+    #[serde(alias = "f", default, deserialize_with = "deserialize_enum")]
     pub format: Option<OutputFormat>,
     pub dpi: Option<Dpi>,
     #[serde(default, deserialize_with = "deserialize_style")]
@@ -104,3 +109,43 @@ pub struct RequestParams {
     pub watermark: Option<Watermark>,
 }
 
+fn deserialize_enum<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr,
+    T::Err: Display,
+{
+    String::deserialize(deserializer)?
+        .parse()
+        .map(Some)
+        .map_err(serde::de::Error::custom)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::de::value::{Error, StrDeserializer};
+
+    fn parse<T: FromStr>(value: &str) -> Option<T>
+    where
+        T::Err: Display,
+    {
+        deserialize_enum(StrDeserializer::<Error>::new(value)).ok().flatten()
+    }
+
+    #[test]
+    fn url_enum_values_are_case_insensitive() {
+        assert_eq!(parse::<ImageGravity>("center"), Some(ImageGravity::Center));
+        assert_eq!(parse::<ImageGravity>("Center"), Some(ImageGravity::Center));
+        assert_eq!(parse::<ImageGravity>("TOP-LEFT"), Some(ImageGravity::TopLeft));
+        assert_eq!(parse::<ImageFit>("Contain"), Some(ImageFit::Contain));
+        assert_eq!(parse::<OutputFormat>("JPG"), Some(OutputFormat::Jpeg));
+        assert_eq!(parse::<OutputFormat>("jpeg"), Some(OutputFormat::Jpeg));
+    }
+
+    #[test]
+    fn an_unknown_url_enum_value_is_rejected() {
+        assert_eq!(parse::<ImageGravity>("middle"), None);
+        assert_eq!(parse::<ImageGravity>(""), None);
+    }
+}
