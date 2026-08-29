@@ -1,5 +1,6 @@
 use crate::enums::image_gravity::ImageGravity;
 use crate::params::aspect_ratio::AspectRatio;
+use crate::params::parse_dimension;
 use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer};
 use std::fmt;
@@ -41,8 +42,8 @@ impl FromStr for Crop {
                 .ok_or_else(|| CropParseError(format!("Missing ':' in crop segment '{part}'")))?;
 
             match key {
-                "w" | "width" => crop.width = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop width: '{value}'")))?),
-                "h" | "height" => crop.height = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop height: '{value}'")))?),
+                "w" | "width" => crop.width = parse_dimension(value).map_err(|_| CropParseError(format!("Invalid crop width: '{value}'")))?,
+                "h" | "height" => crop.height = parse_dimension(value).map_err(|_| CropParseError(format!("Invalid crop height: '{value}'")))?,
                 "ar" | "aspect_ratio" => crop.aspect_ratio = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop aspect ratio: '{value}'")))?),
                 "g" | "gravity" => crop.gravity = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop gravity: '{value}'")))?),
                 "x" => crop.x = Some(value.parse().map_err(|_| CropParseError(format!("Invalid crop x offset: '{value}'")))?),

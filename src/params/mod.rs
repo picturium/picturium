@@ -54,9 +54,9 @@ use crate::params::watermark::Watermark;
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct RequestParams {
     pub force: Option<Force>,
-    #[serde(alias = "w")]
+    #[serde(alias = "w", default, deserialize_with = "deserialize_dimension")]
     pub width: Option<u16>,
-    #[serde(alias = "h")]
+    #[serde(alias = "h", default, deserialize_with = "deserialize_dimension")]
     pub height: Option<u16>,
     #[serde(alias = "ar")]
     pub aspect_ratio: Option<AspectRatio>,
@@ -109,6 +109,20 @@ pub struct RequestParams {
     pub watermark: Option<Watermark>,
 }
 
+pub(crate) fn parse_dimension(value: &str) -> Result<Option<u16>, std::num::ParseIntError> {
+    let value = value.trim();
+
+    if value.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(value.parse::<u16>()?).filter(|value| *value > 0))
+}
+
+fn deserialize_dimension<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<u16>, D::Error> {
+    parse_dimension(&String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+}
+
 fn deserialize_enum<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -141,6 +155,16 @@ mod tests {
         assert_eq!(parse::<ImageFit>("Contain"), Some(ImageFit::Contain));
         assert_eq!(parse::<OutputFormat>("JPG"), Some(OutputFormat::Jpeg));
         assert_eq!(parse::<OutputFormat>("jpeg"), Some(OutputFormat::Jpeg));
+    }
+
+    #[test]
+    fn a_zero_or_empty_dimension_means_the_parameter_was_not_requested() {
+        assert_eq!(parse_dimension("800").unwrap(), Some(800));
+        assert_eq!(parse_dimension("0").unwrap(), None);
+        assert_eq!(parse_dimension("").unwrap(), None);
+        assert_eq!(parse_dimension(" ").unwrap(), None);
+        assert!(parse_dimension("-5").is_err());
+        assert!(parse_dimension("70000").is_err());
     }
 
     #[test]

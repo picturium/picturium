@@ -42,8 +42,10 @@ Output formats
 - [x] svg (document passthrough, see `f`)
 
 
-- [ ] `w`|`width` (int): width of the output image in pixels [default: 0]
-- [ ] `h`|`height` (int): height of the output image in pixels [default: 0]
+- [x] `w`|`width` (int): width of the output image in pixels [default: 0]
+- [x] `h`|`height` (int): height of the output image in pixels [default: 0]
+  - `0` and an empty value mean the axis was not requested, the same as leaving the parameter out; the same holds for `crop`'s `w` / `h`
+  - with only one of the two set, the other is derived from the source aspect ratio, or from `ar` when it is given
 - [x] `ar`|`aspect_ratio` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
   - a custom ratio is a fraction, so `ar=1` is rejected while `ar=1/1` and `ar=square` are not
   - with only one of `w` / `h`, the other axis is derived from the ratio
