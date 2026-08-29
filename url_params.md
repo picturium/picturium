@@ -2,6 +2,8 @@
 
 Enum values are matched case-insensitively (`g=Center` is `g=center`), everywhere in the query string.
 
+Most parameters accept a short form and a long form; both are listed below and are interchangeable (`w=` is `width=`). Sub-parameter keys are matched case-sensitively.
+
 - [x] Caching
   - [x] Memory cache (bounded by entry count and per-entry size)
   - [x] Disk cache (bounded effective capacity; oversized / evicted memory values)
@@ -40,15 +42,15 @@ Output formats
 - [x] svg (document passthrough, see `f`)
 
 
-- [ ] `w` (int): width of the output image in pixels [default: 0]
-- [ ] `h` (int): height of the output image in pixels [default: 0]
-- [x] `ar` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
+- [ ] `w`|`width` (int): width of the output image in pixels [default: 0]
+- [ ] `h`|`height` (int): height of the output image in pixels [default: 0]
+- [x] `ar`|`aspect_ratio` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
   - a custom ratio is a fraction, so `ar=1` is rejected while `ar=1/1` and `ar=square` are not
   - with only one of `w` / `h`, the other axis is derived from the ratio
   - `ar` on its own takes the largest area of that ratio that fits the image
   - with both `w` and `h` set the box is already determined, so `ar` is ignored
   - the ratio defines the requested box; `fit` then decides how the image fills it (`cover` crops, `contain` pads, `force` stretches)
-- [x] `g` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
+- [x] `g`|`gravity` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
   - under `fit=cover` it picks which part of the image the crop keeps; under `fit=contain` it places the image on the padded canvas
   - `attention` and `entropy` let libvips pick the region (smart crop); an **animated** source falls back to `center`, because a smart crop would land somewhere else on every frame
   - the `crop=` sub-parameter has its own `g`, defaulting to `image.crop_gravity` rather than to this one
@@ -63,16 +65,16 @@ Output formats
   - [x] `force`: stretch the image to the requested width and height
   - with `upsize=false` the requested box is shrunk to fit the original, so the output is never larger than the original image
     - with `ar` set the box is shrunk uniformly so the requested ratio survives; without it each axis is capped on its own
-- [x] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
-- [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
-- [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
-- [x] `bg` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
+- [x] `pad`|`padding` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
+- [x] `autorot`|`auto_rotate` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
+- [x] `rot`|`rotate` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
+- [x] `bg`|`background` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
 - [x] `cache` (any): browser / CDN cache buster (timestamp or random string); does not regenerate server-cached output
 - [x] `force` (bool): skip the server caches, regenerate, and replace the cached entries so later requests without `force` serve the fresh output; responds with `Cache-Control: no-store` and never returns 304
 - [x] `download` (string): attach a file to response (e.g. `download=image.png`) [default: _filename_], file extension overrides `f`
 - [x] `original` (bool): return original image instead of processed one [default: false]
-- [x] `q` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
-- [x] `f` (string): output format (auto, jpg / jpeg, png, webp, gif, avif, jxl, pdf, svg) [default: auto]
+- [x] `q`|`quality` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
+- [x] `f`|`format` (string): output format (auto, jpg / jpeg, png, webp, gif, avif, jxl, pdf, svg) [default: auto]
   - `auto` picks the first entry of `output.format_priority` the client accepts, falling back to webp
   - `pdf` and `svg` are **document** formats, not image formats: libvips can rasterize them but cannot write them, so the document itself is served
     - `f=svg` requires an SVG source (`.svg` / `.svgz`) or a **vector** source (`.ai`, `.cdr`, `.cmx`, `.cdt`, `.eps`), otherwise 415; an SVG is served as-is, a vector source is converted with Inkscape to plain SVG
@@ -90,13 +92,13 @@ Output formats
 - [x] `t`|`time` (string): position of the frame to extract from a **video** source, in seconds (`t=5`, `t=5.25`) or as a timecode (`t=00:01:30`) [default: `video.default_time`]; this is the only way to address a video, and it seeks to the nearest keyframe rather than decoding up to the position
   - when a position past the end of the video is specified, error 500 is returned
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
-- [x] `meta` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
+- [x] `meta`|`metadata` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
-- [x] `limit`
+- [x] `limit`|`limits`
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`
-- [ ] `thumb` (string): thumbnail parameters in format `thumb=page:1,2`
-  - [ ] `p`|`page`|`pages` (string): **deprecated**, use the top-level `page`|`pages` parameter, which shares the same syntax and takes precedence when both are given
+- [x] `thumb`|`thumbnail` (string): thumbnail parameters in format `thumb=page:1,2`
+  - [x] `p`|`page`|`pages` (string): **deprecated**, use the top-level `page`|`pages` parameter, which shares the same syntax and takes precedence when both are given
 - [x] `anim`|`animate` (string): animation parameters in format `anim=frames:10|timing:500|loop:0|stride:2`
   - an animated source (animated GIF or WebP, AVIF / HEIC sequence, multi-page TIFF) keeps its animation without any `anim=` at all, along with its original frame delays and loop count; a multi-page document rendered with `pages` becomes an animation the same way
   - `anim=off` (also `false`, `no`, `0`) flattens the source to its first frame
@@ -110,10 +112,10 @@ Output formats
   - sizing, cropping, padding, rotation, and filters apply to every frame, so `w`, `h`, `fit`, `crop` and `pad` mean the same thing they do for a still image
   - for a **video** source `anim` extracts a clip instead of a single frame: `t` gives the start, `frames` the length (default `video.animation_frames`, capped by `video.max_animation_frames`) and `timing` / `fps` the sample rate (default `video.animation_fps`). Without `anim=`, a video is still a single frame
 - [x] `crop` (string): crop parameters in format `crop=ar:auto|w:50|h:50|g:center|x:0|y:0`; at least one of `w`, `h` or `ar` must be set
-  - [x] `w` (int): width of the crop area in pixels relative to the original image size [default: 0]
-  - [x] `h` (int): height of the crop area in pixels relative to the original image size [default: 0]
-  - [x] `ar`: aspect ratio of the crop area [default: auto]
-  - [x] `g`: gravity of the crop area [default: `image.crop_gravity`, not `image.gravity`]
+  - [x] `w`|`width` (int): width of the crop area in pixels relative to the original image size [default: 0]
+  - [x] `h`|`height` (int): height of the crop area in pixels relative to the original image size [default: 0]
+  - [x] `ar`|`aspect_ratio`: aspect ratio of the crop area [default: auto]
+  - [x] `g`|`gravity`: gravity of the crop area [default: `image.crop_gravity`, not `image.gravity`]
   - [x] `x` (int): offset on the X axis (horizontal) in pixels from the center of gravity, negative values are supported [default: 0]
   - [x] `y` (int): offset on the Y axis (vertical) in pixels from the center of gravity, negative values are supported [default: 0]
   - the crop is applied to the original image **before** `w`, `h`, `ar`, `fit` and `pad`, which then act on the cropped region
