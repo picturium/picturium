@@ -73,7 +73,8 @@ fn resolve_geometry(
     fit: ImageFit,
     (original_width, original_height): (u16, u16),
 ) -> SizeGeometry {
-    let has_bounding_box = width.is_some() && height.is_some();
+    let has_bounding_box = (width.is_some() && height.is_some()) || matches!(aspect_ratio, AspectRatio::Value(_));
+
     let (width, height) = set_missing_dimensions(
         aspect_ratio,
         (width, height),
@@ -89,7 +90,11 @@ fn resolve_geometry(
     if has_bounding_box && matches!(fit, ImageFit::Contain | ImageFit::Cover) {
         let (width, height) = match upsize {
             Upsize::True => (width, height),
-            Upsize::False => clamp_dimensions(width, height, original_width, original_height),
+            Upsize::False => fit_within(
+                (width, height),
+                (original_width, original_height),
+                aspect_ratio,
+            ),
         };
 
         let horizontal_scale = width as f64 / original_width as f64;
@@ -118,7 +123,11 @@ fn resolve_geometry(
 
     let content = match upsize {
         Upsize::True => (width, height),
-        Upsize::False => clamp_dimensions(width, height, original_width, original_height),
+        Upsize::False => fit_within(
+            (width, height),
+            (original_width, original_height),
+            aspect_ratio,
+        ),
     };
 
     SizeGeometry {
@@ -128,9 +137,11 @@ fn resolve_geometry(
 }
 
 fn apply_size_modifier(width: u16, height: u16, modifier: f32) -> (u16, u16) {
+    let modifier = f64::from(modifier);
+
     (
-        (width as f32 * modifier) as u16,
-        (height as f32 * modifier) as u16,
+        scaled_dimension(width, modifier),
+        scaled_dimension(height, modifier),
     )
 }
 
@@ -300,6 +311,11 @@ fn set_missing_dimensions(
     let (mut width, mut height) = (width, height);
 
     if width.is_none() && height.is_none() {
+        if let AspectRatio::Value(ratio) = aspect_ratio {
+            let (width, height) = largest_area(ratio, (original_width, original_height));
+            return (Some(width), Some(height));
+        }
+
         width = Some(original_width);
     }
 
@@ -315,6 +331,25 @@ fn set_missing_dimensions(
     }
 
     (width, height)
+}
+
+/// Shrink a requested box so it fits inside the original
+fn fit_within(
+    (width, height): (u16, u16),
+    (original_width, original_height): (u16, u16),
+    aspect_ratio: AspectRatio,
+) -> (u16, u16) {
+    if !matches!(aspect_ratio, AspectRatio::Value(_)) {
+        return clamp_dimensions(width, height, original_width, original_height);
+    }
+
+    let axis = |original: u16, requested: u16| f64::from(original) / f64::from(requested.max(1));
+    let scale = axis(original_width, width).min(axis(original_height, height));
+
+    match scale < 1.0 {
+        true => (scaled_dimension(width, scale), scaled_dimension(height, scale)),
+        false => (width, height),
+    }
 }
 
 fn clamp_dimensions(
@@ -373,6 +408,12 @@ mod tests {
     #[test]
     fn test_apply_size_modifier_scales_default_dimensions() {
         assert_eq!(apply_size_modifier(100, 50, 1.5), (150, 75));
+    }
+
+    #[test]
+    fn the_size_modifier_rounds_and_never_collapses_an_axis() {
+        assert_eq!(apply_size_modifier(101, 51, 1.5), (152, 77));
+        assert_eq!(apply_size_modifier(100, 100, 0.001), (1, 1));
     }
 
     #[test]
@@ -535,6 +576,121 @@ mod tests {
             SizeGeometry {
                 content: (200, 100),
                 canvas: None,
+            },
+        );
+    }
+
+    #[test]
+    fn an_explicit_aspect_ratio_with_one_dimension_creates_a_canvas() {
+        assert_eq!(
+            resolve_geometry(
+                (Some(300), None),
+                AspectRatio::Value(1.0),
+                1.0,
+                Upsize::True,
+                ImageFit::Cover,
+                (400, 200),
+            ),
+            SizeGeometry {
+                content: (600, 300),
+                canvas: Some((300, 300)),
+            },
+        );
+        assert_eq!(
+            resolve_geometry(
+                (None, Some(200)),
+                AspectRatio::Value(1.0),
+                1.0,
+                Upsize::True,
+                ImageFit::Contain,
+                (400, 200),
+            ),
+            SizeGeometry {
+                content: (200, 100),
+                canvas: Some((200, 200)),
+            },
+        );
+    }
+
+    #[test]
+    fn an_aspect_ratio_alone_takes_the_largest_matching_area() {
+        // Source is wider than 1:1, so the height is the constraint; nothing is upsized.
+        assert_eq!(
+            resolve_geometry(
+                (None, None),
+                AspectRatio::Value(1.0),
+                1.0,
+                Upsize::False,
+                ImageFit::Cover,
+                (1000, 600),
+            ),
+            SizeGeometry {
+                content: (1000, 600),
+                canvas: Some((600, 600)),
+            },
+        );
+        // Source is taller than 16:9, so the width is the constraint.
+        assert_eq!(
+            resolve_geometry(
+                (None, None),
+                AspectRatio::Value(16.0 / 9.0),
+                1.0,
+                Upsize::False,
+                ImageFit::Cover,
+                (1000, 1000),
+            ),
+            SizeGeometry {
+                content: (1000, 1000),
+                canvas: Some((1000, 563)),
+            },
+        );
+    }
+
+    #[test]
+    fn an_aspect_ratio_box_shrinks_uniformly_instead_of_per_axis() {
+        // w=500 & ar=square on a 400x300 source: the box scales by 300/500, staying square.
+        assert_eq!(
+            resolve_geometry(
+                (Some(500), None),
+                AspectRatio::Value(1.0),
+                1.0,
+                Upsize::False,
+                ImageFit::Cover,
+                (400, 300),
+            ),
+            SizeGeometry {
+                content: (400, 300),
+                canvas: Some((300, 300)),
+            },
+        );
+        // Only the height overflows, but the ratio still constrains both axes.
+        assert_eq!(
+            resolve_geometry(
+                (Some(400), None),
+                AspectRatio::Value(1.0),
+                1.0,
+                Upsize::False,
+                ImageFit::Contain,
+                (400, 300),
+            ),
+            SizeGeometry {
+                content: (300, 225),
+                canvas: Some((300, 300)),
+            },
+        );
+        // Without an explicit ratio each axis is still capped on its own.
+        assert_eq!(
+            resolve_geometry(
+                (Some(300), Some(300)),
+                AspectRatio::Auto,
+                1.0,
+                Upsize::False,
+                ImageFit::Cover,
+                (400, 200),
+            ),
+            SizeGeometry {
+                content: (400, 200),
+                canvas: Some((300, 200)),
             },
         );
     }

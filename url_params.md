@@ -40,7 +40,11 @@ Output formats
 
 - [ ] `w` (int): width of the output image in pixels [default: 0]
 - [ ] `h` (int): height of the output image in pixels [default: 0]
-- [ ] `ar` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
+- [x] `ar` (float): aspect ratio of the output image (auto, video, square, custom - 4/3 or 16/10...) [default: auto]
+  - with only one of `w` / `h`, the other axis is derived from the ratio
+  - `ar` on its own takes the largest area of that ratio that fits the image
+  - with both `w` and `h` set the box is already determined, so `ar` is ignored
+  - the ratio defines the requested box; `fit` then decides how the image fills it (`cover` crops, `contain` pads, `force` stretches)
 - [ ] `g` (string): default cropping mechanism (top, right, bottom, left, top-left, top-right, bottom-left, bottom-right, center, attention, entropy) [default: ENV]
 - [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
 - [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
@@ -52,6 +56,7 @@ Output formats
   - [x] `cover`: fill the requested width and height, cropping the overflow (`g` gravity, no `attention` / `entropy` support yet)
   - [x] `force`: stretch the image to the requested width and height
   - with `upsize=false` the requested box is shrunk to fit the original, so the output is never larger than the original image
+    - with `ar` set the box is shrunk uniformly so the requested ratio survives; without it each axis is capped on its own
 - [x] `pad` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
 - [x] `autorot` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
 - [x] `rot` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
