@@ -21,7 +21,12 @@ pub fn verify_signature(config: &Config, uri: &Uri) -> bool {
 
     if let Some(signature) = token {
         let query = params.into_iter().filter(|&p| !p.starts_with("token=")).collect::<Vec<&str>>().join("&");
-        let uri = format!("{}?{}", path, query);
+      
+        let uri = if query.is_empty() {
+          path.to_string()
+        } else {
+          format!("{path}?{query}")
+        };
 
         // Verify signature using SHA-256 HMAC
         let secret_key = config.security.signature_secret.as_bytes();
@@ -31,7 +36,7 @@ pub fn verify_signature(config: &Config, uri: &Uri) -> bool {
         let signature_bytes = match decode(signature) {
             Ok(bytes) => bytes,
             Err(_) => {
-                debug!("Invalid signature: {}", signature);
+                debug!("Invalid signature: {signature}");
                 return false;
             }
         };
