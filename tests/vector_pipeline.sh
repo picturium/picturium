@@ -8,7 +8,7 @@ if [[ "${1:-}" != "--inside" ]]; then
         -v "${repo_root}/../picturium-libvips:/root/picturium-libvips" \
         -v /usr/share/fonts:/usr/share/fonts \
         -w /root/picturium \
-        lamka02sk/picturium-dev:8.18.4 \
+        lamka02sk/picturium-dev:8.18.6 \
         bash tests/vector_pipeline.sh --inside
 fi
 
@@ -118,6 +118,18 @@ width_of() {
     vips im_header_int width "$1"
 }
 
+height_of() {
+    vips im_header_int height "$1"
+}
+
+assert_dimensions() {
+    local image="$1" width="$2" height="$3"
+    local actual="$(width_of "${image}")x$(height_of "${image}")"
+    [[ "${actual}" == "${width}x${height}" ]] || {
+        echo "  ${image} is ${actual}, expected ${width}x${height}"; exit 1
+    }
+}
+
 start_server
 
 echo "== an EPS source rasterizes through the vector pipeline"
@@ -142,6 +154,25 @@ awk -v low="$(width_of "${work_dir}/dpi72.png")" -v high="$(width_of "${work_dir
         }
     }
 '
+
+# Vectors have no native resolution to lose, so a box larger than the declared
+# size renders up to it instead of being clamped by the default upsize=false.
+echo "== a box larger than the source upsizes a vector by default"
+cp "${work_dir}/source.svg" "${work_dir}/data/source.svg"
+request_file source.svg "f=png&w=800&h=600" "${work_dir}/svg-upsized.png"
+assert_dimensions "${work_dir}/svg-upsized.png" 800 600
+request_file source.eps "f=png&w=800&h=600" "${work_dir}/eps-upsized.png"
+assert_dimensions "${work_dir}/eps-upsized.png" 800 600
+
+echo "== an explicit upsize=false still clamps a vector to its declared size"
+request_file source.svg "f=png&w=800&h=600&upsize=false" "${work_dir}/svg-clamped.png"
+assert_dimensions "${work_dir}/svg-clamped.png" 144 72
+
+# The renderer draws straight to the target size, so the source dimensions have
+# to be recovered from the render scale for the contain canvas to survive.
+echo "== a contain canvas is still padded when a vector is clamped"
+request_file source.svg "f=png&w=800&h=40&upsize=false&fit=contain" "${work_dir}/svg-contain.png"
+assert_dimensions "${work_dir}/svg-contain.png" 144 40
 
 echo "== f=pdf serves the converted document"
 request_file source.eps "f=pdf" "${work_dir}/out.pdf"

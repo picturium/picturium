@@ -7,153 +7,105 @@
     <link rel="icon" href="/public/favicon.png">
     <style>
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
+
         body {
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             min-height: 100vh;
-            background: #09090b;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-        .container {
-            text-align: center;
-            padding: 2rem;
-        }
-        .frame {
-            position: relative;
-            display: inline-block;
-            line-height: 0;
-            vertical-align: middle;
-            max-width: 90%;
-            border-radius: 12px;
+            margin: 0;
             overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: #09090b;
         }
-        .frame img {
+
+        .hero {
+            position: relative;
+            display: grid;
+            place-items: center;
+            width: min(1240px, 100%);
+            min-height: 100svh;
+            padding: 4rem 2rem;
+        }
+
+        .logo {
+            position: relative;
+            z-index: 1;
             display: block;
-            max-width: 100%;
-            max-height: 70vh;
-            width: auto;
+            width: min(720px, 100%);
             height: auto;
+            margin-inline: auto;
+            background: #09090b;
         }
-        .fx {
+
+        .pixel-field {
             position: absolute;
             inset: 0;
             pointer-events: none;
         }
-        #flicker {
-            width: 100%;
-            height: 100%;
+
+        .pixel-field i {
+            position: absolute;
+            top: 50%;
+            right: 40%;
+            width: 28px;
+            height: 28px;
+            transform: translateY(-50%);
         }
-        h1 {
-            color: white;
-            margin-top: 2rem;
-            font-size: 2.5rem;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+
+        @media (max-width: 700px) {
+            .hero {
+                padding-inline: 1.25rem;
+            }
+
+            .pixel-field i {
+                right: 4%;
+                opacity: .55;
+                transform: translateY(-50%) scale(.6);
+                transform-origin: center right;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="frame">
-            <img id="logo" src="/public/picturium.webp" alt="Picturium" style="position: relative; top: 5px; left: 5px;">
-            <canvas id="flicker" class="fx" aria-hidden="true"></canvas>
-        </div>
-    </div>
+    <main class="hero">
+        <div class="pixel-field" aria-hidden="true"><i></i></div>
+        <img class="logo" src="/public/picturium.png" alt="Picturium">
+    </main>
+
     <script>
-        (function () {
-            const PX_W = 6.43;
-            const PX_H = 12.5;
-            const TINT = '9, 9, 11';
+        const colors = [
+            '255, 58, 58',
+            '255, 138, 31',
+            '255, 214, 51',
+            '51, 224, 102',
+            '43, 212, 240',
+            '58, 120, 255',
+            '216, 60, 255',
+        ];
+        const shadows = [];
+        const cellSize = 28;
+        const columns = 26;
+        const rows = 27;
+        let seed = 0x9e3779b9;
 
-            const img = document.getElementById('logo');
-            const canvas = document.getElementById('flicker');
-            const ctx = canvas.getContext('2d');
+        const random = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
 
-            let cols = 0, rows = 0, dpr = 1;
-            let f1, p1, f2, p2, amp;
-            let rafId = null;
+        for (let column = 0; column < columns; column++) {
+            const proximity = 1 - column / columns;
 
-            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            for (let row = 0; row < rows; row++) {
+                if (random() > proximity * 0.55) continue;
 
-            function seedCells(count) {
-                f1 = new Float32Array(count);
-                p1 = new Float32Array(count);
-                f2 = new Float32Array(count);
-                p2 = new Float32Array(count);
-                amp = new Float32Array(count);
-                for (let i = 0; i < count; i++) {
-                    f1[i] = 0.5 + Math.random() * 2.0;
-                    p1[i] = Math.random() * Math.PI * 2;
-                    f2[i] = 0.3 + Math.random();
-                    p2[i] = Math.random() * Math.PI * 2;
-                    amp[i] = 0.15 + Math.random() * 0.40;
-                }
+                const opacity = (.1 + random() * .3) * proximity;
+                const color = colors[(column + row) % colors.length];
+                const y = (row - (rows - 1) / 2) * cellSize;
+                shadows.push(`${-column * cellSize}px ${y}px 0 rgba(${color}, ${opacity.toFixed(3)})`);
             }
+        }
 
-            function layout() {
-                const w = img.clientWidth;
-                const h = img.clientHeight;
-                if (!w || !h) return;
-
-                dpr = Math.min(window.devicePixelRatio || 1, 2);
-                canvas.width = Math.round(w * dpr);
-                canvas.height = Math.round(h * dpr);
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-                cols = Math.ceil(w / PX_W);
-                rows = Math.ceil(h / PX_H);
-                seedCells(cols * rows);
-
-                ctx.clearRect(0, 0, w, h);
-            }
-
-            function cellOpacity(i, t) {
-                const s = Math.sin(t * f1[i] + p1[i]) + 0.6 * Math.sin(t * f2[i] + p2[i]);
-                let n = (s + 1.6) / 3.2;
-                n = n * n * n;
-                return n * amp[i];
-            }
-
-            function frame(now) {
-                const t = now / 1000;
-                const w = canvas.width / dpr;
-                const h = canvas.height / dpr;
-
-                ctx.clearRect(0, 0, w, h);
-
-                let i = 0;
-                for (let r = 0; r < rows; r++) {
-                    const y = r * PX_H;
-                    for (let c = 0; c < cols; c++, i++) {
-                        const o = cellOpacity(i, t);
-                        if (o <= 0.004) continue;
-                        ctx.fillStyle = `rgba(${TINT}, ${o.toFixed(3)})`;
-                        ctx.fillRect(c * PX_W, y, PX_W + 0.5, PX_H + 0.5);
-                    }
-                }
-
-                rafId = requestAnimationFrame(frame);
-            }
-
-            function start() {
-                layout();
-                if (reduceMotion) return;
-                cancelAnimationFrame(rafId);
-                rafId = requestAnimationFrame(frame);
-            }
-
-            if (img.complete && img.naturalWidth) {
-                start();
-            } else {
-                img.addEventListener('load', start, { once: true });
-            }
-            window.addEventListener('resize', layout);
-        })();
+        document.querySelector('.pixel-field i').style.boxShadow = shadows.join(', ');
     </script>
 </body>
 </html>

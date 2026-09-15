@@ -3,7 +3,7 @@ use anyhow::{Context, Result, anyhow, ensure};
 use bytes::Bytes;
 use foyer::{
     BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCachePolicy,
-    HybridCacheProperties, Location,
+    HybridCacheProperties, Location, PsyncIoEngineConfig,
 };
 use fs4::FileExt;
 use sha2::{Digest, Sha256};
@@ -16,8 +16,10 @@ use std::time::UNIX_EPOCH;
 use tracing::warn;
 
 const MIB: usize = 1024 * 1024;
-const MAX_BLOCK_SIZE: usize = 16 * MIB;
 const BLOB_INDEX_SIZE: usize = 4 * 1024;
+/// Startup scans every block with a small read, so recovery is latency-bound, not bandwidth-bound.
+/// Foyer defaults to 8; more parallel reads shorten startup on a large cache.
+const RECOVER_CONCURRENCY: usize = 32;
 const STORE_VERSION: &str = "foyer-v1";
 
 #[derive(Clone)]
@@ -46,10 +48,10 @@ impl CacheStore {
     pub async fn new(config: &Config) -> Result<Self> {
         let memory = &config.cache.memory;
         let disk = &config.cache.disk;
-        let memory_entry_limit = if memory.enabled {
-            to_bytes(memory.entry_limit, "cache.memory.entry_limit")?
-        } else {
-            0
+
+        let memory_entry_limit = match memory.enabled {
+            true => to_bytes(memory.entry_limit, "cache.memory.entry_limit")?,
+            false => 0
         };
 
         if !memory.enabled && !disk.enabled {
@@ -63,47 +65,57 @@ impl CacheStore {
             });
         }
 
-        let memory_capacity = if memory.enabled { memory.capacity } else { 1 };
+        let memory_limit = match memory.enabled {
+            true => to_bytes(memory.limit, "cache.memory.limit")?,
+            false => 1
+        };
+
         let memory_enabled = memory.enabled;
         
         let mut builder = HybridCache::<String, Bytes>::builder()
             .with_name("picturium")
             .with_policy(HybridCachePolicy::WriteOnEviction)
             .with_flush_on_close(false)
-            .memory(memory_capacity)
-            .with_weighter(|_, _| 1)
+            .memory(memory_limit)
+            .with_weighter(|_, value: &Bytes| value.len())
             .with_filter(move |_, value: &Bytes| {
                 memory_enabled && value.len() <= memory_entry_limit
             })
             .storage();
 
-        let (owner_lock, disk_entry_limit) = if disk.enabled {
-            let disk_capacity = to_bytes(disk.limit, "cache.disk.limit")?;
-            let cache_dir = PathBuf::from(&config.cache.dir);
-            let owner_lock = acquire_owner_lock(cache_dir.clone()).await?;
-            
-            remove_legacy_cache(&cache_dir).await?;
+        let (owner_lock, disk_entry_limit) = match disk.enabled {
+            true => {
+                let disk_capacity = to_bytes(disk.limit, "cache.disk.limit")?;
+                let cache_dir = PathBuf::from(&config.cache.dir);
+                let owner_lock = acquire_owner_lock(cache_dir.clone()).await?;
 
-            let block_size = disk_capacity.min(MAX_BLOCK_SIZE);
-            
-            let device = FsDeviceBuilder::new(cache_dir.join(STORE_VERSION))
-                .with_capacity(disk_capacity)
-                .build()
-                .context("failed to create disk cache device")?;
-            
-            let engine = BlockEngineConfig::new(device)
-                .with_block_size(block_size)
-                .with_buffer_pool_size(block_size)
-                .with_submit_queue_size_threshold(block_size.saturating_mul(2));
+                let entry_limit = to_bytes(disk.entry_limit, "cache.disk.entry_limit")?;
+                let block_size = entry_limit.saturating_add(BLOB_INDEX_SIZE).min(disk_capacity);
+                let store_dir = format!("{STORE_VERSION}-{block_size}");
 
-            builder = builder.with_engine_config(engine);
-            
-            (Some(Arc::new(owner_lock)), block_size.saturating_sub(BLOB_INDEX_SIZE))
-        } else {
-            (None, 0)
+                remove_legacy_cache(&cache_dir, &store_dir).await?;
+
+                let device = FsDeviceBuilder::new(cache_dir.join(&store_dir))
+                    .with_capacity(disk_capacity)
+                    .build()
+                    .context("Failed to create disk cache device")?;
+
+                let engine = BlockEngineConfig::new(device)
+                    .with_block_size(block_size)
+                    .with_recover_concurrency(RECOVER_CONCURRENCY)
+                    .with_buffer_pool_size(block_size)
+                    .with_submit_queue_size_threshold(block_size.saturating_mul(2));
+
+                builder = builder
+                    .with_io_engine_config(PsyncIoEngineConfig::new())
+                    .with_engine_config(engine);
+
+                (Some(Arc::new(owner_lock)), block_size.saturating_sub(BLOB_INDEX_SIZE))
+            },
+            false => (None, 0)
         };
 
-        let inner = builder.build().await.context("failed to initialize cache")?;
+        let inner = builder.build().await.context("Failed to initialize cache")?;
 
         Ok(Self {
             inner: Some(inner),
@@ -115,6 +127,11 @@ impl CacheStore {
         })
     }
 
+    /// `false` when both tiers are off, so callers can skip work that only warms the cache.
+    pub fn is_enabled(&self) -> bool {
+        self.inner.is_some()
+    }
+
     pub async fn get(&self, key: &str) -> Option<Bytes> {
         let cache = self.inner.as_ref()?;
 
@@ -122,7 +139,7 @@ impl CacheStore {
             Ok(Some(entry)) => Some(entry.value().clone()),
             Ok(None) => None,
             Err(error) => {
-                warn!(%error, "cache read failed; treating it as a miss");
+                warn!(%error, "Cache read failed, cache miss");
                 None
             }
         }
@@ -135,6 +152,16 @@ impl CacheStore {
 
         let properties = self.properties(value.len());
         let _ = cache.insert_with_properties(key, value, properties);
+    }
+
+    pub async fn close(&self) {
+        let Some(cache) = &self.inner else {
+            return;
+        };
+
+        if let Err(e) = cache.close().await {
+            warn!("Failed to close cache cleanly: {e}");
+        }
     }
 
     pub async fn get_or_insert_with<F, Fut>(&self, key: String, fetch: F) -> Result<Bytes>
@@ -153,10 +180,10 @@ impl CacheStore {
         let limits = self.clone();
 
         let result = cache.get_or_fetch(&key, move || async move {
-                let fetch = fetch_for_cache.lock().map_err(|_| anyhow!("cache fetch lock poisoned"))?.take().context("cache fetch already consumed")?;
+                let fetch = fetch_for_cache.lock().map_err(|_| anyhow!("Cache fetch lock poisoned"))?.take().context("Cache fetch already consumed")?;
                 let value = fetch().await?;
 
-                *fetched_for_cache.lock().map_err(|_| anyhow!("cache result lock poisoned"))? = Some(value.clone());
+                *fetched_for_cache.lock().map_err(|_| anyhow!("Cache result lock poisoned"))? = Some(value.clone());
 
                 let properties = limits.properties(value.len());
                 Ok::<_, anyhow::Error>((value, properties))
@@ -165,13 +192,13 @@ impl CacheStore {
         match result {
             Ok(entry) => Ok(entry.value().clone()),
             Err(error) => {
-                warn!(%error, "cache fetch failed; falling back to uncached work");
+                warn!(%error, "Cache fetch failed, continuing without cache");
 
-                if let Some(value) = fetched.lock().map_err(|_| anyhow!("cache result lock poisoned"))?.take() {
+                if let Some(value) = fetched.lock().map_err(|_| anyhow!("Cache result lock poisoned"))?.take() {
                     return Ok(value);
                 }
 
-                let fetch = fetch.lock().map_err(|_| anyhow!("cache fetch lock poisoned"))?.take();
+                let fetch = fetch.lock().map_err(|_| anyhow!("Cache fetch lock poisoned"))?.take();
 
                 match fetch {
                     Some(fetch) => fetch().await,
@@ -238,14 +265,14 @@ pub fn key(namespace: &str, seed: &str, source_path: &Path, metadata: &std::fs::
 
 pub async fn source_key(namespace: &str, seed: &str, source_path: &Path, variant: &str) -> Result<String> {
     let metadata = tokio::fs::metadata(source_path).await
-        .with_context(|| format!("failed to read metadata for {}", source_path.display()))?;
+        .with_context(|| format!("Failed to read metadata for {}", source_path.display()))?;
 
     Ok(key(namespace, seed, source_path, &metadata, variant))
 }
 
 async fn acquire_owner_lock(cache_dir: PathBuf) -> Result<File> {
     tokio::task::spawn_blocking(move || {
-        std::fs::create_dir_all(&cache_dir).with_context(|| format!("failed to create cache directory {}", cache_dir.display()))?;
+        std::fs::create_dir_all(&cache_dir).with_context(|| format!("Failed to create cache directory {}", cache_dir.display()))?;
         
         let lock_path = cache_dir.join(".picturium-cache.lock");
         let file = OpenOptions::new()
@@ -254,11 +281,11 @@ async fn acquire_owner_lock(cache_dir: PathBuf) -> Result<File> {
             .read(true)
             .write(true)
             .open(&lock_path)
-            .with_context(|| format!("failed to open cache owner lock {}", lock_path.display()))?;
+            .with_context(|| format!("Failed to open cache owner lock {}", lock_path.display()))?;
 
         FileExt::try_lock(&file).with_context(|| {
             format!(
-                "cache directory {} is already owned by another Picturium process",
+                "Cache directory {} is already owned by another Picturium process",
                 cache_dir.display()
             )
         })?;
@@ -266,23 +293,43 @@ async fn acquire_owner_lock(cache_dir: PathBuf) -> Result<File> {
         Ok(file)
     })
     .await
-    .context("cache owner lock task failed")?
+    .context("Cache owner lock task failed")?
 }
 
-async fn remove_legacy_cache(cache_dir: &Path) -> Result<()> {
-    let legacy = cache_dir.join("intermediate");
+/// Foyer stores no block size on disk, so a store written with a different one can only be
+/// partially recovered. Each block size gets its own directory and the others are dropped.
+async fn remove_legacy_cache(cache_dir: &Path, store_dir: &str) -> Result<()> {
+    let mut stale = vec![cache_dir.join("intermediate")];
 
-    match tokio::fs::remove_dir_all(&legacy).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error).with_context(|| format!("failed to remove legacy cache {}", legacy.display())),
+    let mut entries = tokio::fs::read_dir(cache_dir)
+        .await
+        .with_context(|| format!("Failed to read cache directory {}", cache_dir.display()))?;
+
+    while let Some(entry) = entries.next_entry().await.with_context(|| format!("Failed to read cache directory {}", cache_dir.display()))? {
+        let name = entry.file_name();
+
+        if name.to_string_lossy().starts_with(STORE_VERSION) && name != *store_dir {
+            stale.push(entry.path());
+        }
     }
+
+    for path in stale {
+        match tokio::fs::remove_dir_all(&path).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).with_context(|| format!("Failed to remove legacy cache {}", path.display()));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn to_bytes(mebibytes: usize, name: &str) -> Result<usize> {
     ensure!(mebibytes > 0, "{name} must be greater than zero when enabled");
-    mebibytes
-        .checked_mul(MIB)
+
+    mebibytes.checked_mul(MIB)
         .with_context(|| format!("{name} is too large"))
 }
 
@@ -295,11 +342,19 @@ mod tests {
         let mut config = Config::default();
         config.cache.dir = root.to_string_lossy().into_owned();
         config.cache.memory.enabled = memory;
-        config.cache.memory.capacity = 2;
+        config.cache.memory.limit = 2;
         config.cache.memory.entry_limit = 1;
         config.cache.disk.enabled = disk;
         config.cache.disk.limit = 1;
+        config.cache.disk.entry_limit = 1;
         config
+    }
+
+    #[tokio::test]
+    async fn is_enabled_follows_the_configured_tiers() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(!CacheStore::new(&config(root.path(), false, false)).await.unwrap().is_enabled());
+        assert!(CacheStore::new(&config(root.path(), true, false)).await.unwrap().is_enabled());
     }
 
     #[tokio::test]

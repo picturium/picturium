@@ -1,6 +1,7 @@
 mod autorotate;
 mod background;
 mod canvas;
+mod colorspace;
 mod crop;
 mod filter;
 mod finish;
@@ -38,7 +39,10 @@ pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u
     // Resize
     image = resize::process(request, image)?;
 
-    // Cover crop or contain canvas, followed by padding.
+    // Colorspace
+    image = colorspace::process(image)?;
+
+    // Cover crop or contain canvas, followed by padding
     image = canvas::process(request, image)?;
 
     // Filters

@@ -1,0 +1,35 @@
+# Picturium configuration for the imgproxy benchmark.
+#
+# Caches are off so every request is measured as a full decode + process +
+# encode, which is what imgproxy does by default too.
+
+[server]
+log_level = "warn"
+host = "0.0.0.0"
+port = 20045
+workers = 0
+queue_size = 1000
+
+[vips]
+concurrency = 1
+
+[data]
+dir = "data"
+
+[cache]
+dir = "/tmp/picturium-bench-cache"
+
+[cache.memory]
+enabled = false
+
+[cache.disk]
+enabled = false
+
+[image]
+fit = "cover"
+gravity = "center"
+resample = "lanczos3"
+upsize = false
+
+[output]
+metadata = ["none"]

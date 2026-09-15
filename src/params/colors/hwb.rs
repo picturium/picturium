@@ -10,46 +10,48 @@ pub struct HwbColor {
 
 pub type HwbColorParseError = ColorParseError;
 
-/// Parses the hue, stripping an optional "deg" suffix.
-/// Hue is kept in degrees [0, 360) via wrapping modulo.
-fn parse_hue(raw: &str) -> Result<f64, HwbColorParseError> {
-    let err = || ColorParseError(format!("invalid hue value: '{raw}'"));
-    let stripped = raw.strip_suffix("deg").unwrap_or(raw).trim();
-    let v: f64 = stripped.parse().map_err(|_| err())?;
-    Ok(v.rem_euclid(360.0))
+/// Parses the hue [0, 360), stripping an optional "deg" suffix
+fn parse_hue(input: &str) -> Result<f64, HwbColorParseError> {
+    let degrees = input.strip_suffix("deg")
+        .unwrap_or(input)
+        .trim();
+
+    let hue_degrees: f64 = degrees.parse()
+        .map_err(|_| ColorParseError(format!("invalid hue value: '{input}'")))?;
+
+    Ok(hue_degrees.rem_euclid(360.0))
 }
 
-/// Parses whiteness or blackness — the `%` suffix is required.
-/// Value is normalised to [0.0, 1.0] and must be in [0, 100].
-fn parse_wb(raw: &str) -> Result<f64, HwbColorParseError> {
-    let err = || ColorParseError(format!("invalid whiteness/blackness value: '{raw}'"));
-    let pct = raw
-        .strip_suffix('%')
-        .ok_or_else(err)?
+/// Parses whiteness or blackness — the `%` suffix is required on input
+fn parse_wb(input: &str) -> Result<f64, HwbColorParseError> {
+    let percentage_text = input.strip_suffix('%')
+        .ok_or_else(|| ColorParseError(format!("invalid whiteness/blackness value: '{input}'")))?
         .trim();
-    let v: f64 = pct.parse().map_err(|_| err())?;
-    if !(0.0..=100.0).contains(&v) {
-        return Err(ColorParseError(format!("whiteness/blackness out of range: '{raw}'")));
-    }
-    Ok(v / 100.0)
+
+    let percentage = percentage_text.parse::<f64>()
+        .map_err(|_| ColorParseError(format!("invalid whiteness/blackness value: '{input}'")))?
+        .clamp(0.0, 100.0);
+
+    Ok(percentage / 100.0)
 }
 
 /// Parses an alpha value, either as a percentage ("20%") or a plain number in [0, 1].
-fn parse_alpha(raw: &str) -> Result<f64, HwbColorParseError> {
-    let err = || ColorParseError(format!("invalid alpha value: '{raw}'"));
-    if let Some(pct) = raw.strip_suffix('%') {
-        let v: f64 = pct.trim().parse().map_err(|_| err())?;
-        if !(0.0..=100.0).contains(&v) {
-            return Err(ColorParseError(format!("alpha percentage out of range: '{raw}'")));
-        }
-        Ok(v / 100.0)
-    } else {
-        let v: f64 = raw.trim().parse().map_err(|_| err())?;
-        if !(0.0..=1.0).contains(&v) {
-            return Err(ColorParseError(format!("alpha value out of range: '{raw}'")));
-        }
-        Ok(v)
+fn parse_alpha(input: &str) -> Result<f64, HwbColorParseError> {
+    if let Some(percentage_text) = input.strip_suffix('%') {
+        let percentage = percentage_text.trim()
+            .parse::<f64>()
+            .map_err(|_| ColorParseError(format!("invalid alpha value: '{input}'")))?
+            .clamp(0.0, 100.0);
+
+        return Ok(percentage / 100.0);
     }
+
+    let alpha = input.trim()
+        .parse::<f64>()
+        .map_err(|_| ColorParseError(format!("invalid alpha value: '{input}'")))?
+        .clamp(0.0, 1.0);
+
+    Ok(alpha)
 }
 
 impl FromStr for HwbColor {
@@ -60,35 +62,34 @@ impl FromStr for HwbColor {
     /// - `"120 75% 25%"`           plain hue
     /// - `"120 75% 25% / 0.2"`     with slash alpha in [0, 1]
     /// - `"120 75% 25% / 20%"`     with slash alpha as percentage
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let err = || ColorParseError(format!("invalid HWB color: '{s}'"));
-
-        // --- slash-separated alpha branch: "h w b / a[%]" ---
-        if let Some((color_part, alpha_part)) = s.split_once('/') {
-            let channels: Vec<&str> = color_part.split_whitespace().collect();
-            let alpha_raw = alpha_part.trim();
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        // --- slash-separated alpha: "h w b / a[%]" ---
+        if let Some((color_text, alpha_text)) = input.split_once('/') {
+            let channels: Vec<&str> = color_text.split_whitespace().collect();
+            let alpha = alpha_text.trim();
 
             return match channels.as_slice() {
-                [h, w, b] => Ok(Self {
-                    hue:       parse_hue(h)?,
-                    whiteness: parse_wb(w)?,
-                    blackness: parse_wb(b)?,
-                    alpha:     parse_alpha(alpha_raw)?,
+                [hue, whiteness, blackness] => Ok(Self {
+                    hue: parse_hue(hue)?,
+                    whiteness: parse_wb(whiteness)?,
+                    blackness: parse_wb(blackness)?,
+                    alpha: parse_alpha(alpha)?,
                 }),
-                _ => Err(err()),
+                _ => Err(ColorParseError(format!("invalid HWB color: '{input}'"))),
             };
         }
 
         // --- plain space-separated branch: "h w b" ---
-        let parts: Vec<&str> = s.split_whitespace().collect();
+        let parts: Vec<&str> = input.split_whitespace().collect();
+
         match parts.as_slice() {
-            [h, w, b] => Ok(Self {
-                hue:       parse_hue(h)?,
-                whiteness: parse_wb(w)?,
-                blackness: parse_wb(b)?,
-                alpha:     1.0,
+            [hue, whiteness, blackness] => Ok(Self {
+                hue: parse_hue(hue)?,
+                whiteness: parse_wb(whiteness)?,
+                blackness: parse_wb(blackness)?,
+                alpha: 1.0,
             }),
-            _ => Err(err()),
+            _ => Err(ColorParseError(format!("invalid HWB color: '{input}'"))),
         }
     }
 }
@@ -101,39 +102,41 @@ impl HwbColor {
     /// 2. Derive the hue-based RGB the same way as HSL with s=1, l=0.5.
     /// 3. Mix: `channel = channel * (1 - w - b) + w`.
     fn hwb_to_rgb(&self) -> (f64, f64, f64) {
-        let mut w = self.whiteness;
-        let mut bk = self.blackness;
+        let mut whiteness = self.whiteness;
+        let mut blackness = self.blackness;
 
         // Normalise if whiteness + blackness exceed 1
-        let sum = w + bk;
-        if sum > 1.0 {
-            w /= sum;
-            bk /= sum;
+        let total = whiteness + blackness;
+
+        if total > 1.0 {
+            whiteness /= total;
+            blackness /= total;
         }
 
         // Pure-hue RGB (equivalent to HSL with s=1, l=0.5)
-        let h = self.hue / 60.0;
-        let sector = h.floor() as u32 % 6;
-        let f = h - h.floor();
+        let hue_sector = self.hue / 60.0;
+        let sector = hue_sector.floor() as u32 % 6;
+        let sector_fraction = hue_sector - hue_sector.floor();
 
-        let (r, g, b) = match sector {
-            0 => (1.0, f,   0.0),
-            1 => (1.0 - f, 1.0, 0.0),
-            2 => (0.0, 1.0, f),
-            3 => (0.0, 1.0 - f, 1.0),
-            4 => (f,   0.0, 1.0),
-            _ => (1.0, 0.0, 1.0 - f),
+        let (red, green, blue) = match sector {
+            0 => (1.0, sector_fraction, 0.0),
+            1 => (1.0 - sector_fraction, 1.0, 0.0),
+            2 => (0.0, 1.0, sector_fraction),
+            3 => (0.0, 1.0 - sector_fraction, 1.0),
+            4 => (sector_fraction, 0.0, 1.0),
+            _ => (1.0, 0.0, 1.0 - sector_fraction),
         };
 
-        let mix = |c: f64| c * (1.0 - w - bk) + w;
-        (mix(r), mix(g), mix(b))
+        let mix = |channel: f64| channel * (1.0 - whiteness - blackness) + whiteness;
+
+        (mix(red), mix(green), mix(blue))
     }
 }
 
 impl Color for HwbColor {
     fn to_rgb(&self) -> (f64, f64, f64, f64) {
-        let (r, g, b) = self.hwb_to_rgb();
-        (r, g, b, self.alpha)
+        let (red, green, blue) = self.hwb_to_rgb();
+        (red, green, blue, self.alpha)
     }
 }
 
@@ -142,17 +145,43 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    fn approx_eq(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1.0  // within 1 unit on the 0-255 scale
+    fn approx_eq(actual: f64, expected: f64) -> bool {
+        (actual - expected).abs() < 1.0 / 255.0 // within 1 unit on the 0-255 scale
     }
 
-    fn assert_rgba(s: &str, r: f64, g: f64, b: f64, a: f64) {
-        let c = HwbColor::from_str(s).unwrap_or_else(|e| panic!("parse failed for '{s}': {e}"));
-        let (cr, cg, cb, ca) = c.to_rgb();
-        assert!(approx_eq(cr, r), "red mismatch for '{s}': {cr} != {r}");
-        assert!(approx_eq(cg, g), "green mismatch for '{s}': {cg} != {g}");
-        assert!(approx_eq(cb, b), "blue mismatch for '{s}': {cb} != {b}");
-        assert!(approx_eq(ca, a), "alpha mismatch for '{s}': {ca} != {a}");
+    /// Expected values are given on the 0-255 scale; parsed channels are in [0.0, 1.0].
+    fn assert_rgba(
+        input: &str,
+        expected_red: f64,
+        expected_green: f64,
+        expected_blue: f64,
+        expected_alpha: f64,
+    ) {
+        let color = HwbColor::from_str(input)
+            .unwrap_or_else(|error| panic!("parse failed for '{input}': {error}"));
+        let (actual_red, actual_green, actual_blue, actual_alpha) = color.to_rgb();
+        let (expected_red, expected_green, expected_blue, expected_alpha) = (
+            expected_red / 255.0,
+            expected_green / 255.0,
+            expected_blue / 255.0,
+            expected_alpha / 255.0,
+        );
+        assert!(
+            approx_eq(actual_red, expected_red),
+            "red mismatch for '{input}': {actual_red} != {expected_red}"
+        );
+        assert!(
+            approx_eq(actual_green, expected_green),
+            "green mismatch for '{input}': {actual_green} != {expected_green}"
+        );
+        assert!(
+            approx_eq(actual_blue, expected_blue),
+            "blue mismatch for '{input}': {actual_blue} != {expected_blue}"
+        );
+        assert!(
+            approx_eq(actual_alpha, expected_alpha),
+            "alpha mismatch for '{input}': {actual_alpha} != {expected_alpha}"
+        );
     }
 
     // hwb(120, 75%, 25%) => rgb(191, 255, 191)  [w=0.75, b=0.25 → sum=1 → achromatic-ish]

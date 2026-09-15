@@ -32,7 +32,7 @@ pub(super) async fn process(
         let convert = move || async move { convert_to_pdf(&first_source, Some(&filter)).await };
         let result = cache.resolve(first_key, forced, convert).await;
 
-        if result.is_ok() {
+        if result.is_ok() && full_cache.is_enabled() {
             spawn_full_conversion(full_cache, full_key, source_path, forced);
         }
 

@@ -40,6 +40,7 @@ pub async fn process_svg(request: &PipelineRequest<'_>) -> Result<ResolvedSource
 
 async fn convert(request: &PipelineRequest<'_>, target: Target) -> Result<ResolvedSource> {
     let source_path = request.source.path.clone();
+    let area = export_area(&source_path);
     let duration = Duration::from_secs(request.state.config.vector.conversion_timeout);
 
     let key = source_key(
@@ -49,27 +50,37 @@ async fn convert(request: &PipelineRequest<'_>, target: Target) -> Result<Resolv
         "",
     ).await?;
 
-    let export = move || async move { export(&source_path, target, duration).await };
+    let export = move || async move { export(&source_path, target, area, duration).await };
     let value = request.state.cache.resolve(key, request.forced, export).await?;
 
     ResolvedSource::materialize(&value, target.extension()).await
 }
 
-async fn export(source_path: &Path, target: Target, conversion_timeout: Duration) -> Result<Bytes> {
+/// The DXF importer always emits a fixed A4 page, so the drawing sits outside it
+/// whenever the source is larger than A4. Every other vector format carries its
+/// own page, which we keep.
+fn export_area(source_path: &Path) -> &'static str {
+    match source_path.extension().and_then(|ext| ext.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("dxf") => "--export-area-drawing",
+        _ => "--export-area-page",
+    }
+}
+
+async fn export(source_path: &Path, target: Target, area: &str, conversion_timeout: Duration) -> Result<Bytes> {
     let output = tempfile::Builder::new()
         .prefix("picturium-vector-")
         .suffix(target.extension())
         .tempfile()
         .context("failed to create temporary inkscape output")?;
 
-    run_inkscape(source_path, output.path(), target, conversion_timeout).await?;
+    run_inkscape(source_path, output.path(), target, area, conversion_timeout).await?;
 
     tokio::fs::read(output.path()).await
         .map(Bytes::from)
         .context("failed to read inkscape output")
 }
 
-async fn run_inkscape(source_path: &Path, output_path: &Path, target: Target, conversion_timeout: Duration) -> Result<()> {
+async fn run_inkscape(source_path: &Path, output_path: &Path, target: Target, area: &str, conversion_timeout: Duration) -> Result<()> {
     let mut command = Command::new("inkscape");
 
     command.arg(match target {
@@ -82,7 +93,7 @@ async fn run_inkscape(source_path: &Path, output_path: &Path, target: Target, co
     }
 
     let mut child = command
-        .arg("--export-area-page")
+        .arg(area)
         .arg("--export-overwrite")
         .arg("--export-filename")
         .arg(output_path)
@@ -117,7 +128,15 @@ async fn run_inkscape(source_path: &Path, output_path: &Path, target: Target, co
 
 #[cfg(test)]
 mod tests {
-    use super::Target;
+    use super::{Target, export_area};
+    use std::path::Path;
+
+    #[test]
+    fn only_dxf_exports_the_drawing_instead_of_the_page() {
+        assert_eq!(export_area(Path::new("plan.DXF")), "--export-area-drawing");
+        assert_eq!(export_area(Path::new("logo.ai")), "--export-area-page");
+        assert_eq!(export_area(Path::new("logo.eps")), "--export-area-page");
+    }
 
     #[test]
     fn the_two_targets_never_share_a_cache_entry() {

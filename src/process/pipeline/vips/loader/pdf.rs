@@ -5,13 +5,18 @@ use crate::services::size::calculate_load_size;
 use anyhow::{Result, anyhow};
 use picturium_libvips::{FromPdfOptions, VipsAccess, VipsImage};
 
-pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
-    VipsImage::new_from_pdf(source_path, Some(get_pdf_options(request, source_path)?))
+pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImage> {
+    let (dpi, scale) = resolve_sizing(request, source_path)?;
+
+    // The page is rendered straight to the target size, so the source dimensions
+    // are recovered from the render scale instead of a shrink-on-load factor.
+    request.source.shrink = 1.0 / scale;
+
+    VipsImage::new_from_pdf(source_path, Some(get_pdf_options(request, dpi, scale)))
         .map_err(|e| anyhow!(e))
 }
 
-fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromPdfOptions> {
-    let (dpi, scale) = resolve_sizing(request, source_path)?;
+fn get_pdf_options(request: &PipelineRequest, dpi: f64, scale: f64) -> FromPdfOptions {
     let empty_vec = vec![];
 
     let min_page = request
@@ -34,7 +39,7 @@ fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromP
 
     let page_count = max_page - min_page + 1;
 
-    Ok(FromPdfOptions {
+    FromPdfOptions {
         page: (*min_page as i32) - 1,
         page_count: page_count as i32,
         dpi,
@@ -46,7 +51,7 @@ fn get_pdf_options(request: &PipelineRequest, source_path: &str) -> Result<FromP
         },
         revalidate: true,
         ..Default::default()
-    })
+    }
 }
 
 fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64)> {

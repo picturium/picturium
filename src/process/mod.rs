@@ -47,6 +47,7 @@ pub async fn process_file(
         Ok(source) => source,
         Err(e) => {
             debug!("Source resolution failed for {file_path}: {e}");
+
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header("Content-Type", "text/html; charset=utf-8")
@@ -334,7 +335,7 @@ mod tests {
         let mut config = Config::default();
         config.cache.dir = root.path().to_string_lossy().into_owned();
         config.cache.memory.enabled = true;
-        config.cache.memory.capacity = 2;
+        config.cache.memory.limit = 2;
         config.cache.memory.entry_limit = 1;
         config.cache.disk.enabled = false;
         let cache = CacheStore::new(&config).await.unwrap();

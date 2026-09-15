@@ -1,6 +1,7 @@
 use crate::enums::filter::FilterValue;
 use crate::enums::image_fit::ImageFit;
 use crate::enums::image_gravity::ImageGravity;
+use crate::enums::input::VipsInputFormat;
 use crate::enums::upsize::Upsize;
 use crate::params::aspect_ratio::AspectRatio;
 use crate::params::crop::Crop;
@@ -28,16 +29,35 @@ fn source_dimensions(request: &PipelineRequest) -> (u16, u16) {
 }
 
 fn geometry(request: &PipelineRequest, original: (u16, u16)) -> SizeGeometry {
+    let modifier = request.parameters.scale * request.parameters.dpr;
+
     let geometry = resolve_geometry(
         (request.parameters.width, request.parameters.height),
         request.parameters.aspect_ratio,
-        request.parameters.scale * request.parameters.dpr,
-        request.parameters.upsize.clone(),
+        modifier,
+        resolve_upsize(request),
         request.parameters.fit,
         original,
     );
 
     limit_geometry(geometry, request.parameters.limits.dimension.unwrap_or_default())
+}
+
+fn resolve_upsize(request: &PipelineRequest) -> Upsize {
+    default_upsize(
+        request.parameters.upsize.clone(),
+        request.input_format,
+        request.state.config.image.upsize,
+    )
+}
+
+/// Vector sources have no native resolution to lose, so they upsize by default.
+fn default_upsize(requested: Option<Upsize>, format: VipsInputFormat, configured: bool) -> Upsize {
+    match (requested, format) {
+        (Some(upsize), _) => upsize,
+        (None, VipsInputFormat::Svg | VipsInputFormat::Pdf) => Upsize::True,
+        (None, _) => configured.into(),
+    }
 }
 
 fn limit_geometry(geometry: SizeGeometry, limit: Dimension) -> SizeGeometry {
@@ -109,6 +129,7 @@ fn resolve_geometry(
             scaled_dimension(original_width, content_scale),
             scaled_dimension(original_height, content_scale),
         );
+
         let output = match fit {
             ImageFit::Contain => (width, height),
             ImageFit::Cover => (width.min(content.0), height.min(content.1)),
@@ -139,10 +160,7 @@ fn resolve_geometry(
 fn apply_size_modifier(width: u16, height: u16, modifier: f32) -> (u16, u16) {
     let modifier = f64::from(modifier);
 
-    (
-        scaled_dimension(width, modifier),
-        scaled_dimension(height, modifier),
-    )
+    (scaled_dimension(width, modifier), scaled_dimension(height, modifier))
 }
 
 fn scaled_dimension(dimension: u16, scale: f64) -> u16 {
@@ -151,6 +169,7 @@ fn scaled_dimension(dimension: u16, scale: f64) -> u16 {
 
 fn canvas_size(request: &PipelineRequest) -> Option<(u16, u16)> {
     let (width, height) = geometry(request, source_dimensions(request)).canvas?;
+
     Some(apply_pixelize_filter(request, width, height))
 }
 
@@ -160,6 +179,7 @@ pub(crate) fn calculate_contain_canvas_size(request: &PipelineRequest) -> Option
     }
 
     let (width, height) = canvas_size(request)?;
+
     Some((i32::from(width), i32::from(height)))
 }
 
@@ -195,6 +215,7 @@ pub fn calculate_load_size(request: &PipelineRequest, image: &VipsImage) -> (i32
     let target = processing_size(request, (crop_width as u16, crop_height as u16));
 
     let output = &request.state.config.output;
+
     apply_crop(
         target,
         original,
@@ -296,6 +317,7 @@ fn processing_size(request: &PipelineRequest, original: (u16, u16)) -> (i32, i32
     let (width, height) = apply_pixelize_filter(request, width, height);
 
     debug!("Calculated size: {}x{}", width, height);
+
     (width as i32, height as i32)
 }
 
@@ -313,6 +335,7 @@ fn set_missing_dimensions(
     if width.is_none() && height.is_none() {
         if let AspectRatio::Value(ratio) = aspect_ratio {
             let (width, height) = largest_area(ratio, (original_width, original_height));
+
             return (Some(width), Some(height));
         }
 
@@ -358,10 +381,7 @@ fn clamp_dimensions(
     original_width: u16,
     original_height: u16,
 ) -> (u16, u16) {
-    (
-        requested_width.min(original_width),
-        requested_height.min(original_height),
-    )
+    (requested_width.min(original_width), requested_height.min(original_height))
 }
 
 fn apply_pixelize_filter(request: &PipelineRequest, width: u16, height: u16) -> (u16, u16) {
@@ -386,6 +406,18 @@ fn apply_pixelize_filter(request: &PipelineRequest, width: u16, height: u16) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vector_sources_upsize_unless_the_request_says_otherwise() {
+        assert_eq!(default_upsize(None, VipsInputFormat::Svg, false), Upsize::True);
+        assert_eq!(default_upsize(None, VipsInputFormat::Pdf, false), Upsize::True);
+        assert_eq!(default_upsize(None, VipsInputFormat::Png, false), Upsize::False);
+        assert_eq!(default_upsize(None, VipsInputFormat::Png, true), Upsize::True);
+        assert_eq!(
+            default_upsize(Some(Upsize::False), VipsInputFormat::Svg, false),
+            Upsize::False,
+        );
+    }
 
     #[test]
     fn test_clamp_dimensions() {

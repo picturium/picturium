@@ -19,6 +19,10 @@ pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>) -> 
     let filter = filter.unwrap_or("pdf");
 
     let status = Command::new("soffice")
+        .arg(format!(
+            "-env:UserInstallation=file://{}",
+            output.path().join("profile").display()
+        ))
         .arg("--headless")
         .arg("--nologo")
         .arg("--nodefault")

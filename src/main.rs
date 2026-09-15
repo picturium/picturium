@@ -20,6 +20,7 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
+use tokio::signal::unix::{SignalKind, signal};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::startup_logs::print_startup_logs;
@@ -67,6 +68,17 @@ fn create_app(state: AppState) -> Router {
         .with_state(state)
 }
 
+async fn shutdown_signal() {
+    let mut terminate = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {},
+        _ = terminate.recv() => {},
+    }
+
+    info!("Shutdown signal received, shutting down...");
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = Arc::new(Config::load()?);
@@ -76,11 +88,18 @@ async fn main() -> Result<()> {
 
     print_startup_logs(&config, &state);
 
+    let cache = state.cache.clone();
     let app = create_app(state);
     let listener = tokio::net::TcpListener::bind(&config.server.get_address()).await?;
 
     info!("Server listening on {}", config.server.get_address());
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    cache.close().await;
+    info!("Shutdown complete");
+
     Ok(())
 }

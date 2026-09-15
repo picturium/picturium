@@ -19,7 +19,7 @@
 # Log level (debug [default], info, warn, error)
 log_level = "debug"
 host = "0.0.0.0"
-port = 20046
+port = 20045
 # Number of worker threads [default: 0 = double the number of CPUs]
 workers = 0
 # Maximum number of requests in queue [default: 100]
@@ -66,8 +66,8 @@ cache_control = "public, max-age=604800, must-revalidate"
 
 [cache.memory]
 enabled = true
-# Maximum number of cache entries [default: 1000]
-capacity = 1000
+# Maximum total size of the memory cache in MiB [default: 256]
+limit = 256
 # Maximum size of a single memory entry in MiB. Larger values go directly to
 # disk when it is enabled, or are served without caching. [default: 2]
 entry_limit = 2
@@ -76,9 +76,14 @@ entry_limit = 2
 enabled = true
 # Maximum effective disk cache size in MiB across generated responses and
 # Office, SVG and video intermediates. Foyer evicts/reclaims entries
-# automatically. A single disk entry is limited to just under 16 MiB.
-# [default: 1024]
+# automatically. [default: 1024]
 limit = 1024
+# Maximum size of a single disk entry in MiB [default: 16]. Larger responses are
+# never written to disk. This also sets the block size, the unit foyer reclaims
+# in, so a bigger value evicts more entries at once and holds one block in memory
+# per flusher. Changing it discards the existing disk cache, which cannot be read
+# back at a different block size.
+entry_limit = 16
 
 
 # By default, libvips blocks loading SVG images larger than 10 MB to increase

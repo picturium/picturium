@@ -1,19 +1,19 @@
-FROM ubuntu:24.04 as build
+FROM ubuntu:26.04 AS build
 
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/local/lib /usr/local/lib
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/local/bin/vips /usr/local/bin/vips
-COPY --from=lamka02sk/picturium-base:8.18.4 /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
-COPY --from=lamka02sk/picturium-base:8.18.4 /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/lib/libreoffice /usr/lib/libreoffice
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/libreoffice /usr/share/libreoffice
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/liblangtag /usr/share/liblangtag
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/color /usr/share/color
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/ghostscript /usr/share/ghostscript
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/poppler /usr/share/poppler
-COPY --from=lamka02sk/picturium-base:8.18.4 /usr/share/mime /usr/share/mime
-COPY --from=lamka02sk/picturium-base:8.18.4 /etc /etc
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/local/lib /usr/local/lib
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/local/bin/vips /usr/local/bin/vips
+COPY --from=lamka02sk/picturium-base:8.18.6 /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+COPY --from=lamka02sk/picturium-base:8.18.6 /lib/aarch64-linux-gnu /lib/aarch64-linux-gnu
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/lib/libreoffice /usr/lib/libreoffice
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/libreoffice /usr/share/libreoffice
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/liblangtag /usr/share/liblangtag
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/color /usr/share/color
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/ghostscript /usr/share/ghostscript
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/poppler /usr/share/poppler
+COPY --from=lamka02sk/picturium-base:8.18.6 /usr/share/mime /usr/share/mime
+COPY --from=lamka02sk/picturium-base:8.18.6 /etc /etc
 
-RUN apt update -y && apt install -y curl gcc libc6-dev && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt update -y && apt install -y curl gcc libc6-dev && apt autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1500 picturium
 RUN useradd -u 1500 -g 1500 -m -s /bin/bash picturium
@@ -22,20 +22,20 @@ USER picturium
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/usr/lib/libreoffice/program:/home/picturium/.cargo/bin:${PATH}"
+ENV RUSTFLAGS="-C linker-features=-lld"
 
 # Build picturium
 RUN mkdir -p /home/picturium/picturium
 WORKDIR /home/picturium/picturium
+COPY --from=libvips --chown=picturium:picturium . /home/picturium/picturium-libvips
 COPY --from=root --chown=picturium:picturium . .
 RUN cargo build --release
 
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 RUN groupadd -g 1500 picturium
 RUN useradd -u 1500 -g 1500 -m -d /app -s /bin/bash picturium
-
-RUN mkdir -p /home/picturium && chown -R picturium:picturium /home/picturium
 
 COPY --from=build /usr/local/lib /usr/local/lib
 COPY --from=build /usr/local/bin/vips /usr/local/bin/vips
@@ -50,13 +50,20 @@ COPY --from=build /usr/share/poppler /usr/share/poppler
 COPY --from=build /usr/share/mime /usr/share/mime
 COPY --from=build /etc /etc
 COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/bin/picturium
+COPY --from=build --chown=picturium:picturium /home/picturium/picturium/public /app/public
 
-RUN apt update -y && apt install -y --no-install-recommends ffmpeg inkscape ghostscript python3-lxml python3-numpy python3-cssselect && apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt update -y && apt install -y --no-install-recommends ffmpeg inkscape ghostscript python3-lxml python3-numpy \
+    python3-cssselect libheif-plugin-libde265 && \
+  apt autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ldconfig
+RUN install -d -m 0755 -o picturium -g picturium /app/cache
+
 USER picturium
 
 ENV PATH="/usr/lib/libreoffice/program:${PATH}"
 
+VOLUME /app/cache
 WORKDIR /app
-ENTRYPOINT picturium
+
+ENTRYPOINT ["picturium"]

@@ -8,7 +8,7 @@ if [[ "${1:-}" != "--inside" ]]; then
         -v "${repo_root}/../picturium-libvips:/root/picturium-libvips" \
         -v /usr/share/fonts:/usr/share/fonts \
         -w /root/picturium \
-        lamka02sk/picturium-dev:8.18.4 \
+        lamka02sk/picturium-dev:8.18.6 \
         bash tests/animation_pipeline.sh --inside
 fi
 

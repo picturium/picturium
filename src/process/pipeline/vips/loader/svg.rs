@@ -4,15 +4,19 @@ use crate::services::size::calculate_load_size;
 use anyhow::{Result, anyhow};
 use picturium_libvips::{FromSvgOptions, VipsAccess, VipsFailOn, VipsImage};
 
-pub fn load(request: &PipelineRequest, source_path: &str) -> Result<VipsImage> {
-    VipsImage::new_from_svg(source_path, Some(get_svg_options(request, source_path)?))
+pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImage> {
+    let (dpi, scale) = resolve_sizing(request, source_path)?;
+
+    // The drawing is rendered straight to the target size, so the source
+    // dimensions are recovered from the render scale, not a shrink-on-load factor.
+    request.source.shrink = 1.0 / scale;
+
+    VipsImage::new_from_svg(source_path, Some(get_svg_options(request, dpi, scale)))
         .map_err(|e| anyhow!(e))
 }
 
-fn get_svg_options(request: &PipelineRequest, source_path: &str) -> Result<FromSvgOptions> {
-    let (dpi, scale) = resolve_sizing(request, source_path)?;
-
-    Ok(FromSvgOptions {
+fn get_svg_options(request: &PipelineRequest, dpi: f64, scale: f64) -> FromSvgOptions {
+    FromSvgOptions {
         dpi,
         scale,
         unlimited: request.state.config.svg.unlimited,
@@ -27,7 +31,7 @@ fn get_svg_options(request: &PipelineRequest, source_path: &str) -> Result<FromS
         access: VipsAccess::Sequential,
         fail_on: VipsFailOn::Error,
         revalidate: true,
-    })
+    }
 }
 
 fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64)> {

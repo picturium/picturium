@@ -4,13 +4,9 @@ Enum values are matched case-insensitively (`g=Center` is `g=center`), everywher
 
 Most parameters accept a short form and a long form; both are listed below and are interchangeable (`w=` is `width=`). Sub-parameter keys are matched case-sensitively.
 
-- [x] Caching
-  - [x] Memory cache (bounded by entry count and per-entry size)
-  - [x] Disk cache (bounded effective capacity; oversized / evicted memory values)
-  - [x] Automatic cleanup (capacity-based eviction and reclamation)
-- [x] URL token verification (signature)
 
-Input formats // from InputFormat enum
+## Input formats // from InputFormat enum
+
 - [x] jpeg
 - [x] jp2k
 - [x] png
@@ -29,9 +25,12 @@ Input formats // from InputFormat enum
 - [x] office (doc, ppt, xls)
 - [x] ai (inkscape)
 - [x] cdr (inkscape: cdr, cmx, cdt)
+- [x] dxf (inkscape)
 - [x] video (mp4, webm, mkv, avi, av1, 3gp, m4v, flv, mov, mpeg, mts, hevc)
 
-Output formats
+
+## Output formats 
+
 - [x] jpeg
 - [x] webp
 - [x] png
@@ -41,6 +40,8 @@ Output formats
 - [x] pdf (document passthrough, see `f`)
 - [x] svg (document passthrough, see `f`)
 
+
+## URL parameters
 
 - [x] `w`|`width` (int): width of the output image in pixels [default: 0]
 - [x] `h`|`height` (int): height of the output image in pixels [default: 0]
@@ -58,7 +59,7 @@ Output formats
   - the `crop=` sub-parameter has its own `g`, defaulting to `image.crop_gravity` rather than to this one
 - [x] `dpr` (float): device pixel ratio (applied on width and height before processing) [default: 1]
 - [x] `scale` (float): scale image by given factor (applied on width and height during processing) [default: 1]
-- [x] `upsize` (bool): enable image upsizing [default: ENV]
+- [x] `upsize` (bool): enable image upsizing [default: ENV, but `true` for vector sources — SVG, PDF, EPS/AI/CDR and office documents — which have no native resolution to lose]
 - [x] `extend` (string): extend image to fit an aspect ratio or when `pad` is set (bg, copy, repeat, mirror) [default: ENV]
 - [x] `resample` (string): image resampling algorithm (nearest, linear, cubic, lanczos2, lanczos3) [default: ENV]
 - [x] `fit` (string): fit image to requested width and height, or force dimensions without maintaining aspect ratio (cover, contain, force) [default: ENV]
@@ -79,7 +80,7 @@ Output formats
 - [x] `f`|`format` (string): output format (auto, jpg / jpeg, png, webp, gif, avif, jxl, pdf, svg) [default: auto]
   - `auto` picks the first entry of `output.format_priority` the client accepts, falling back to webp
   - `pdf` and `svg` are **document** formats, not image formats: libvips can rasterize them but cannot write them, so the document itself is served
-    - `f=svg` requires an SVG source (`.svg` / `.svgz`) or a **vector** source (`.ai`, `.cdr`, `.cmx`, `.cdt`, `.eps`), otherwise 415; an SVG is served as-is, a vector source is converted with Inkscape to plain SVG
+    - `f=svg` requires an SVG source (`.svg` / `.svgz`) or a **vector** source (`.ai`, `.cdr`, `.cmx`, `.cdt`, `.eps`, `.dxf`), otherwise 415; an SVG is served as-is, a vector source is converted with Inkscape to plain SVG
     - `f=pdf` requires a PDF, office document, SVG or **vector** source, otherwise 415; an office document is converted with LibreOffice first, a vector source with Inkscape, an SVG is converted to a single-page vector PDF
       - an SVG's `<image>` elements are embedded only when they are inlined as `data:` URIs; file references are followed only if `svg.allow_local_resources` is on, and even then only inside the data directory
     - `f=pdf` with `pages` returns a PDF of exactly those pages (`pages=1,4` gives two pages, not 4); pages past the end are ignored, a selection with none of them is 400

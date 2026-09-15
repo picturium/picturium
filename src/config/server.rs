@@ -15,7 +15,7 @@ impl Default for ServerConfig {
         Self {
             log_level: "debug".into(),
             host: "0.0.0.0".into(),
-            port: 20046,
+            port: 20045,
             workers: 0,
             queue_size: 100,
         }

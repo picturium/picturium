@@ -3,6 +3,8 @@
 /data
 /cache
 /.idea
-/.zcode
+/.serena
 /config.toml
 
+bench/out/
+bench/results.md

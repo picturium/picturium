@@ -100,6 +100,7 @@ impl Source {
             "cmx" => InputFormat::Vector(VectorInputFormat::Cmx),
             "cdt" => InputFormat::Vector(VectorInputFormat::Cdt),
             "eps" => InputFormat::Vector(VectorInputFormat::Eps),
+            "dxf" => InputFormat::Vector(VectorInputFormat::Dxf),
             "psd" => InputFormat::Vips(VipsInputFormat::Psd),
             "bmp" => InputFormat::Vips(VipsInputFormat::Bmp),
             "raw" | "rw2" | "raf" | "pef" | "orf" | "nrw" | "nef" | "dng" | "cr2" | "cr3"
@@ -150,7 +151,7 @@ mod tests {
 
     #[test]
     fn inkscape_formats_are_detected_as_vector() {
-        for name in ["logo.ai", "logo.cdr", "logo.cmx", "logo.cdt", "logo.eps", "LOGO.AI"] {
+        for name in ["logo.ai", "logo.cdr", "logo.cmx", "logo.cdt", "logo.eps", "plan.dxf", "LOGO.AI"] {
             assert!(
                 matches!(
                     Source::get_format(&PathBuf::from(name)),

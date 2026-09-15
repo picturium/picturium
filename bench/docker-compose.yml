@@ -1,0 +1,78 @@
+services:
+  picturium:
+    image: lamka02sk/picturium-dev:8.18.6
+    working_dir: /root/picturium
+    environment:
+      PICTURIUM_CONFIG: bench/picturium.toml
+      RUSTFLAGS: "-C linker-features=-lld"
+    command: bash -lc "cargo build --release && exec ./target/release/picturium"
+    volumes:
+      - ../:/root/picturium
+      - ../../picturium-libvips:/root/picturium-libvips
+      - picturium-cargo-cache:/root/.cargo/registry/cache
+    ports:
+      - "20045:20045"
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCH_CPUS:-4}"
+          memory: 4g
+
+  # picturium v1 (the released 2024 image), matched to the v2 service: same
+  # sources, same CPU cap, one libvips thread and no cache, so every request
+  # pays the full decode, process and encode. v1 always writes its output
+  # through a file, so its cache directory is a tmpfs to keep host disk speed
+  # out of the numbers.
+  picturium-v1:
+    image: lamka02sk/picturium:latest
+    working_dir: /app
+    environment:
+      LOG: "warn"
+      HOST: 0.0.0.0
+      PORT: "20048"
+      CORS: ""
+      CACHE: /tmp/picturium-v1-cache
+      CACHE_ENABLE: "false"
+      CACHE_CAPACITY: "1"
+      AVIF_ENABLE: "true"
+      VIPS_CONCURRENCY: "1"
+      WORKERS: "0"
+    volumes:
+      - ../data:/app/data:ro
+      # v1 ships no fonts of its own and LibreOffice refuses to start without
+      # any, so the office scenarios need the host's.
+      - /usr/share/fonts:/usr/share/fonts:ro
+    tmpfs:
+      - /tmp
+    ports:
+      - "20048:20048"
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCH_CPUS:-4}"
+          memory: 4g
+
+  imgproxy:
+    image: ${IMGPROXY_IMAGE:-ghcr.io/imgproxy/imgproxy:latest}
+    environment:
+      IMGPROXY_ALLOW_UNSAFE_URL: "1"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /data
+      IMGPROXY_STRIP_METADATA: "1"
+      IMGPROXY_ENABLE_WEBP_DETECTION: "0"
+      IMGPROXY_ENABLE_AVIF_DETECTION: "0"
+      IMGPROXY_MAX_SRC_RESOLUTION: "100"
+      IMGPROXY_LOG_LEVEL: warn
+    volumes:
+      - ../data:/data:ro
+    ports:
+      - "20047:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCH_CPUS:-4}"
+          memory: 4g
+
+volumes:
+  picturium-cargo-cache:
+    external: true
+    name: picturium-cargo-cache

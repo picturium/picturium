@@ -61,6 +61,7 @@ pub enum VectorInputFormat {
     Cmx,
     Cdt,
     Eps,
+    Dxf,
 }
 
 #[derive(Debug, Clone, Copy, Display)]
@@ -124,6 +125,7 @@ pub fn get_input_mime(path: &Path) -> &'static str {
         "ai" => "application/illustrator",
         "cdr" | "cdt" => "application/vnd.corel-draw",
         "cmx" => "image/x-cmx",
+        "dxf" => "image/vnd.dxf",
         "psd" => "image/vnd.adobe.photoshop",
         "bmp" => "image/bmp",
         "raw" | "rw2" | "raf" | "pef" | "orf" | "nrw" | "nef" | "dng" | "cr2" | "cr3" | "crw" | "arw" => "image/raw",
@@ -198,6 +200,7 @@ mod tests {
         assert_eq!(get_input_mime(Path::new("logo.cdr")), "application/vnd.corel-draw");
         assert_eq!(get_input_mime(Path::new("logo.cdt")), "application/vnd.corel-draw");
         assert_eq!(get_input_mime(Path::new("logo.cmx")), "image/x-cmx");
+        assert_eq!(get_input_mime(Path::new("plan.dxf")), "image/vnd.dxf");
         assert_eq!(get_input_mime(Path::new("logo.eps")), "application/postscript");
     }
 
