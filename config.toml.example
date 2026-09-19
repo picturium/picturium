@@ -105,6 +105,9 @@ allow_local_resources = false
 
 [pdf]
 load_dpi = 72
+# Background used when rasterizing PDF and Office document pages to images.
+# A request `bg`/`background` parameter overrides it [default: "white"].
+background = "white"
 
 
 [office]

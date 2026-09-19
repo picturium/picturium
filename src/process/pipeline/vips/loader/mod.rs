@@ -4,13 +4,12 @@ mod svg;
 mod tiff;
 mod webp;
 
-use crate::enums::dpi::Dpi;
 use crate::enums::input::{InputFormat, VipsInputFormat};
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::source::Source;
 use crate::services::size::calculate_load_size;
-use anyhow::{Result, anyhow};
-use picturium_libvips::{FromFileOptions, FromSvgOptions, VipsAccess, VipsImage};
+use anyhow::{anyhow, Result};
+use picturium_libvips::{FromFileOptions, VipsAccess, VipsImage};
 use std::path::PathBuf;
 
 /// Load a file known to be vips-compatible from `source_path`.

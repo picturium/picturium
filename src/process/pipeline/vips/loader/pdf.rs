@@ -1,4 +1,5 @@
 use crate::enums::dpi::Dpi;
+use crate::params::background::Background;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::background::resolve_background;
 use crate::services::size::calculate_load_size;
@@ -44,7 +45,10 @@ fn get_pdf_options(request: &PipelineRequest, dpi: f64, scale: f64) -> FromPdfOp
         page_count: page_count as i32,
         dpi,
         scale,
-        background: resolve_background(request.parameters.background).to_vec(),
+        background: pdf_background(
+            request.parameters.background,
+            &request.state.config.pdf.background,
+        ).to_vec(),
         access: match page_count > 1 {
             true => VipsAccess::Random,
             false => VipsAccess::Sequential,
@@ -52,6 +56,14 @@ fn get_pdf_options(request: &PipelineRequest, dpi: f64, scale: f64) -> FromPdfOp
         revalidate: true,
         ..Default::default()
     }
+}
+
+fn pdf_background(requested: Option<Background>, configured: &str) -> [f64; 4] {
+    let configured = configured
+        .parse()
+        .expect("pdf.background must be validated before processing requests");
+
+    resolve_background(requested.or(Some(configured)))
 }
 
 fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64)> {
@@ -84,4 +96,18 @@ fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Resu
     ];
 
     Ok(scaling.into_iter().reduce(f64::max).unwrap_or(1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pdf_background;
+
+    #[test]
+    fn request_background_overrides_the_configured_default() {
+        assert_eq!(pdf_background(None, "white"), [255.0; 4]);
+        assert_eq!(
+            pdf_background(Some("transparent".parse().unwrap()), "white"),
+            [0.0; 4]
+        );
+    }
 }

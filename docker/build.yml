@@ -22,7 +22,6 @@ USER picturium
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/usr/lib/libreoffice/program:/home/picturium/.cargo/bin:${PATH}"
-ENV RUSTFLAGS="-C linker-features=-lld"
 
 # Build picturium
 RUN mkdir -p /home/picturium/picturium

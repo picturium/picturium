@@ -51,7 +51,6 @@ pub struct Parameters {
     pub dpi: Dpi,
     pub style: Option<String>,
     pub metadata: Metadata,
-    pub fallback: Option<String>,
     pub limits: Limits,
     pub pages: Option<Vec<u32>>,
     pub animate: Animate,
@@ -101,7 +100,6 @@ impl Parameters {
             dpi: params.dpi.unwrap_or_default(),
             style: params.style,
             metadata: params.metadata.unwrap_or_else(|| config.output.metadata.clone()),
-            fallback: params.fallback,
             limits: {
                 let mut limits = params.limits.unwrap_or_default();
                 limits.size = limits.size.or(Some(config.output.max_size).filter(|size| *size > 0));

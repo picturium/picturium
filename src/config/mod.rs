@@ -85,6 +85,7 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
+        self.pdf.validate()?;
         self.watermark.validate()?;
         self.output.validate()?;
         self.cache.validate()

@@ -47,11 +47,6 @@ impl Color {
     pub fn to_rgb_with_bit_depth(&self, bit_depth: u8) -> (f64, f64, f64, f64) {
         self.to_rgb(get_bit_depth_multiplier(bit_depth))
     }
-
-    pub fn to_rgb_vec_with_bit_depth(&self, bit_depth: u8) -> Vec<f64> {
-        let (r, g, b, a) = self.to_rgb_with_bit_depth(bit_depth);
-        vec![r, g, b, a]
-    }
 }
 
 #[derive(Debug)]
