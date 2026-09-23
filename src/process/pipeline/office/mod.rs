@@ -26,6 +26,7 @@ pub async fn process(request: &PipelineRequest<'_>) -> Result<ResolvedSource> {
         full_key,
         source_path,
         request.forced,
+        Duration::from_secs(request.state.config.office.kill_timeout),
     );
     
     let pdf = wait_for_conversion(&mut conversion, duration).await?;
@@ -37,9 +38,10 @@ pub(super) fn spawn_full_conversion(
     key: String,
     source_path: PathBuf,
     forced: bool,
+    kill_timeout: Duration,
 ) -> JoinHandle<Result<Bytes>> {
     tokio::spawn(async move {
-        let convert = move || async move { convert_to_pdf(&source_path, None).await };
+        let convert = move || async move { convert_to_pdf(&source_path, None, kill_timeout).await };
         let result = cache.resolve(key, forced, convert).await;
 
         if let Err(error) = &result {

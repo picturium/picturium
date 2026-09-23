@@ -4,21 +4,21 @@ use std::{path::Path, time::Duration};
 use tokio::process::Command;
 use tokio::{task::JoinHandle, time::timeout};
 
-pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>) -> Result<Bytes> {
-    let output = tempfile::tempdir().context("failed to create soffice output directory")?;
+pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>, kill_timeout: Duration) -> Result<Bytes> {
+    let output = tempfile::tempdir().context("Failed to create soffice output directory")?;
     
     let produced_pdf = output
         .path()
         .join(
             source_path
                 .file_stem()
-                .with_context(|| format!("invalid source path: {}", source_path.display()))?,
+                .with_context(|| format!("Invalid source path: {}", source_path.display()))?,
         )
         .with_extension("pdf");
     
     let filter = filter.unwrap_or("pdf");
 
-    let status = Command::new("soffice")
+    let mut child = Command::new("soffice")
         .arg(format!(
             "-env:UserInstallation=file://{}",
             output.path().join("profile").display()
@@ -32,9 +32,25 @@ pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>) -> 
         .arg("--outdir")
         .arg(output.path())
         .arg(source_path)
-        .status()
-        .await
-        .context("failed to run soffice command")?;
+        .process_group(0)
+        .spawn()
+        .context("Failed to spawn soffice command")?;
+
+    let status = match timeout(kill_timeout, child.wait()).await {
+        Ok(status) => status.context("Failed to wait on soffice process")?,
+        Err(_) => {
+            if let Some(pid) = child.id() {
+                unsafe { libc::killpg(pid as libc::pid_t, libc::SIGKILL) };
+            }
+
+            child.wait().await.ok();
+
+            return Err(anyhow!(
+                "soffice conversion killed after {} seconds",
+                kill_timeout.as_secs()
+            ));
+        }
+    };
 
     if !status.success() {
         return Err(anyhow!(
@@ -46,7 +62,7 @@ pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>) -> 
     tokio::fs::read(&produced_pdf)
         .await
         .map(Bytes::from)
-        .with_context(|| format!("failed to read soffice output {}", produced_pdf.display()))
+        .with_context(|| format!("Failed to read soffice output {}", produced_pdf.display()))
 }
 
 pub(super) async fn wait_for_conversion(conversion: &mut JoinHandle<Result<Bytes>>, duration: Duration) -> Result<Bytes> {

@@ -30,6 +30,7 @@ krilla = { version = "0.8", default-features = false, features = ["raster-images
 krilla-svg = "0.8"
 usvg = "0.47"
 tempfile = "3"
+libc = "0.2"
 
 [patch.crates-io]
 # Unreleased fix for fastant TSC calibration overflow in containers.

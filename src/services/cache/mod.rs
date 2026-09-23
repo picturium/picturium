@@ -145,6 +145,12 @@ impl CacheStore {
         }
     }
 
+    /// Memory tier `(usage, capacity)` in bytes, `None` when the cache is disabled.
+    pub fn memory_usage(&self) -> Option<(usize, usize)> {
+        let memory = self.inner.as_ref()?.memory();
+        Some((memory.usage(), memory.capacity()))
+    }
+
     pub fn insert(&self, key: String, value: Bytes) {
         let Some(cache) = &self.inner else {
             return;

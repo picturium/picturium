@@ -32,6 +32,12 @@ signature_enabled = false
 # Secret key used for HMAC-SHA256 verification, for example run
 # `openssl rand -hex 48` in terminal to generate a new random string
 signature_secret = ""
+# Bearer token that unlocks details on `/health` (version, worker and queue
+# counts, memory statistics), sent as the `Authorization: Bearer <token>` header
+# or as `/health?token=<token>`. The query form ends up in access and debug logs,
+# prefer the header where you can. Without a token `/health` returns only the
+# status; a wrong token gets 401. Empty disables the details [default: ""]
+health_token = ""
 
 
 [cors]
@@ -40,7 +46,7 @@ allowed_origins = ["*"]
 
 
 [vips]
-# Enable libvips memory debugging [default: false]
+# Enable libvips memory debugging, prints objects still alive at shutdown [default: false]
 debug = false
 # Number of libvips threads [default: 1]
 concurrency = 1
@@ -113,6 +119,10 @@ background = "white"
 [office]
 # Timeout for office document conversion in seconds [default: 30]
 conversion_timeout = 30
+# Hard limit for a single LibreOffice run in seconds. After conversion_timeout the request
+# fails, but the conversion continues in the background to warm the cache until this limit
+# kills it. Must not be lower than conversion_timeout [default: 60]
+kill_timeout = 60
 
 
 [vector]

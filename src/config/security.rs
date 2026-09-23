@@ -5,4 +5,5 @@ use serde::{Deserialize, Serialize};
 pub struct SecurityConfig {
     pub signature_enabled: bool,
     pub signature_secret: String,
+    pub health_token: String,
 }

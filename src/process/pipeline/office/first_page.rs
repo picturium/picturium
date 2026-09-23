@@ -17,6 +17,7 @@ pub(super) async fn process(
     request: &PipelineRequest<'_>,
 ) -> Result<ResolvedSource> {
     let forced = request.forced;
+    let kill_timeout = Duration::from_secs(request.state.config.office.kill_timeout);
 
     if !forced && let Some(pdf) = request.state.cache.get(&full_key).await {
         return ResolvedSource::materialize(&pdf, ".pdf").await;
@@ -29,11 +30,11 @@ pub(super) async fn process(
     let full_cache = request.state.cache.clone();
     
     let mut conversion = tokio::spawn(async move {
-        let convert = move || async move { convert_to_pdf(&first_source, Some(&filter)).await };
+        let convert = move || async move { convert_to_pdf(&first_source, Some(&filter), kill_timeout).await };
         let result = cache.resolve(first_key, forced, convert).await;
 
         if result.is_ok() && full_cache.is_enabled() {
-            spawn_full_conversion(full_cache, full_key, source_path, forced);
+            spawn_full_conversion(full_cache, full_key, source_path, forced, kill_timeout);
         }
 
         result

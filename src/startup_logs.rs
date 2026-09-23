@@ -82,6 +82,7 @@ pub fn print_startup_logs(config: &SharedConfig, state: &AppState) {
     );
     info!("  CORS origins: {}", config.cors.allowed_origins.join(", "));
     info!("  Signature verification: {}", config.security.signature_enabled);
+    info!("  Health statistics: {}", !config.security.health_token.is_empty());
     info!("  Vips debug: {}", config.vips.debug);
     info!("  Vips concurrency: {}", config.vips.concurrency);
     info!("  Multithreading: {} workers, {} queue size", state.multithreading.get_available_workers(), state.multithreading.get_available_queue_size());

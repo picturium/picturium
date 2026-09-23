@@ -1406,6 +1406,7 @@ dependencies = [
  "httpdate",
  "krilla",
  "krilla-svg",
+ "libc",
  "lopdf",
  "picturium-libvips",
  "scopeguard",

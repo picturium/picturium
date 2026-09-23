@@ -13,7 +13,7 @@ pub struct AppState {
     pub multithreading: MultiThreading,
     pub etag_seed: Arc<str>,
     pub cache: CacheStore,
-    _vips: Arc<Vips>,
+    pub vips: Arc<Vips>,
 }
 
 impl AppState {
@@ -21,9 +21,9 @@ impl AppState {
         let multithreading = MultiThreading::new(&config);
         let etag_seed = http_cache::seed(&config).into();
         let cache = CacheStore::new(&config).await?;
-        let _vips = Arc::new(init_vips(&config));
+        let vips = Arc::new(init_vips(&config));
 
-        Ok(Self { config, multithreading, etag_seed, cache, _vips })
+        Ok(Self { config, multithreading, etag_seed, cache, vips })
     }
 }
 

@@ -88,6 +88,7 @@ impl Config {
         self.pdf.validate()?;
         self.watermark.validate()?;
         self.output.validate()?;
+        self.office.validate()?;
         self.cache.validate()
     }
 }

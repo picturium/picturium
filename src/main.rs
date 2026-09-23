@@ -89,6 +89,7 @@ async fn main() -> Result<()> {
     print_startup_logs(&config, &state);
 
     let cache = state.cache.clone();
+    let vips = state.vips.clone();
     let app = create_app(state);
     let listener = tokio::net::TcpListener::bind(&config.server.get_address()).await?;
 
@@ -99,6 +100,12 @@ async fn main() -> Result<()> {
         .await?;
 
     cache.close().await;
+
+    if config.vips.debug {
+        info!("Printing libvips objects still alive at shutdown");
+        vips.print_leaks();
+    }
+
     info!("Shutdown complete");
 
     Ok(())
