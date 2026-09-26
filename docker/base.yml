@@ -45,8 +45,11 @@ RUN apt update -y && \
     libjxl-dev \
     zlib1g-dev \
     libpng-dev \
-    libheif-dev \
-    libheif-plugin-libde265 \
+    libaom-dev \
+    aom-tools \
+    libde265-dev \
+    libyuv-dev \
+    libwebm-dev \
     libpoppler-glib-dev \
     libcgif-dev \
     libraw-dev \
@@ -58,6 +61,19 @@ RUN apt update -y && \
     apt autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
   
 ENV PATH="/usr/lib/libreoffice/program:${PATH}"
+
+# 00-local.conf overrides libheif1 system dependency
+RUN cd /root && \
+    wget https://github.com/strukturag/libheif/releases/download/v1.23.5/libheif-1.23.5.tar.gz && \
+    tar xf libheif-1.23.5.tar.gz && \
+    cmake -S libheif-1.23.5 -B libheif-1.23.5/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DCMAKE_INSTALL_LIBDIR=lib -DWITH_EXAMPLES=OFF -DBUILD_TESTING=OFF -DWITH_GDK_PIXBUF=OFF \
+      -DWITH_AOM_ENCODER_PLUGIN=OFF -DWITH_AOM_DECODER_PLUGIN=OFF -DWITH_LIBDE265_PLUGIN=OFF && \
+    cmake --build libheif-1.23.5/build -j$(nproc) && \
+    cmake --install libheif-1.23.5/build && \
+    echo /usr/local/lib > /etc/ld.so.conf.d/00-local.conf && \
+    ldconfig && \
+    rm -rf libheif-1.23.5 libheif-1.23.5.tar.gz
 
 # Install libvips
 RUN cd /root && \

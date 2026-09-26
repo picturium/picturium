@@ -52,8 +52,13 @@ COPY --from=build /home/picturium/picturium/target/release/picturium /usr/local/
 COPY --from=build --chown=picturium:picturium /home/picturium/picturium/public /app/public
 
 RUN apt update -y && apt install -y --no-install-recommends ffmpeg inkscape ghostscript python3-lxml python3-numpy \
-    python3-cssselect libheif-plugin-libde265 && \
-  apt autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+    python3-cssselect libjemalloc2 && \
+  apt autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so.2
+
+# glibc keeps freed libvips buffers in per-thread arenas and never returns them to the OS
+ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
+ENV MALLOC_CONF=background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:0
 
 RUN ldconfig
 RUN install -d -m 0755 -o picturium -g picturium /app/cache
