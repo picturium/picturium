@@ -102,12 +102,12 @@ impl Parameters {
             metadata: params.metadata.unwrap_or_else(|| config.output.metadata.clone()),
             limits: {
                 let mut limits = params.limits.unwrap_or_default();
-                limits.size = limits.size.or(Some(config.output.max_size).filter(|size| *size > 0));
+                limits.size = min_optional_value(limits.size, Some(config.output.max_size));
 
                 let dimension = limits.dimension.get_or_insert_default();
-                let config_limit = |value: u32| u16::try_from(value).ok().filter(|value| *value > 0);
-                dimension.width = dimension.width.or_else(|| config_limit(config.output.max_width));
-                dimension.height = dimension.height.or_else(|| config_limit(config.output.max_height));
+                let config_limit = |value: u32| u16::try_from(value).ok();
+                dimension.width = min_optional_value(dimension.width, config_limit(config.output.max_width));
+                dimension.height = min_optional_value(dimension.height, config_limit(config.output.max_height));
 
                 limits
             },
@@ -119,9 +119,19 @@ impl Parameters {
     }
 }
 
+fn min_optional_value<T: Ord + Default>(requested: Option<T>, configured: Option<T>) -> Option<T> {
+    let set = |value: Option<T>| value.filter(|value| *value > T::default());
+
+    match (set(requested), set(configured)) {
+        (Some(requested), Some(configured)) => Some(requested.min(configured)),
+        (requested, configured) => requested.or(configured),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::params::limits::Dimension;
     use crate::params::pages::Pages;
     use std::sync::Arc;
 
@@ -209,6 +219,28 @@ mod tests {
         });
 
         assert_eq!(parameters.crop.unwrap().gravity, Some(ImageGravity::TopRight));
+    }
+
+    #[test]
+    fn a_request_limit_can_lower_but_not_raise_the_config_caps() {
+        let mut config = crate::config::Config::default();
+        config.output.max_size = 1000;
+        let config = Arc::new(config);
+        let limits = |limit: &str| {
+            Parameters::new(&config, RequestParams { limits: Some(limit.parse().unwrap()), ..Default::default() }).limits
+        };
+
+        let raised = limits("dimension:9000|size:5000");
+        assert_eq!(raised.dimension, Some(Dimension { width: Some(5000), height: Some(5000) }));
+        assert_eq!(raised.size, Some(1000));
+
+        let lowered = limits("dimension:x300|size:500");
+        assert_eq!(lowered.dimension, Some(Dimension { width: Some(5000), height: Some(300) }));
+        assert_eq!(lowered.size, Some(500));
+
+        let zero = limits("dimension:0|size:0");
+        assert_eq!(zero.dimension, Some(Dimension { width: Some(5000), height: Some(5000) }));
+        assert_eq!(zero.size, Some(1000));
     }
 
     #[test]

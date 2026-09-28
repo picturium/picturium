@@ -32,10 +32,18 @@ See [`url_params.md`](url_params.md) for the full parameter reference.
 
 ## Quick start
 
-Picturium depends on a libvips 8.18.6, which is newer than most package managers provider, so it ships as a Docker image.
+Picturium depends on a libvips 8.18.6, which is newer than most package managers provider, so it ships as a Docker image. The installer needs Docker with the compose plugin, asks a few questions and starts picturium:
 
 ```bash
-docker pull lamka02sk/picturium
+curl -fsSL https://picturium.cc/install.sh | sh
+```
+
+Run the same command again to upgrade. See [Getting started](https://picturium.cc/docs/getting-started) for the options.
+
+Or run the image yourself:
+
+```bash
+docker pull lamka02sk/picturium:0.2.0
 
 # optional: copy config.toml.example into config.toml and adjust the config
 editor config.toml
@@ -45,7 +53,7 @@ docker run --rm -p 20045:20045 \
   -v "$(pwd)/config.toml:/app/config.toml" \
   -v "$(pwd)/data:/app/data" \
   -e PICTURIUM_CONFIG=/app/config.toml \
-  lamka02sk/picturium
+  lamka02sk/picturium:0.2.0
 ```
 
 Then request a transform:

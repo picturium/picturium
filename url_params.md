@@ -68,13 +68,13 @@ Most parameters accept a short form and a long form; both are listed below and a
   - [x] `force`: stretch the image to the requested width and height
   - with `upsize=false` the requested box is shrunk to fit the original, so the output is never larger than the original image
     - with `ar` set the box is shrunk uniformly so the requested ratio survives; without it each axis is capped on its own
-- [x] `pad`|`padding` (int or horizontal,vertical or top,right,bottom or top,right,bottom,left): enable padding [default: 0]
+- [x] `pad`|`padding` (int or vertical,horizontal or top,horizontal,bottom or top,right,bottom,left): enable padding [default: 0]
 - [x] `autorot`|`auto_rotate` (bool): automatically rotate image based on EXIF orientation tag [default: ENV]
 - [x] `rot`|`rotate` (int): rotate image by given angle in degrees (0, 90, 180, 270, no, left, right, bottom-up, clockwise, anticlockwise) [default: no]
 - [x] `bg`|`background` (string): background color for padding (transparent, hex without #, rgb, hsl, hwb, oklab, oklch, or any valid CSS color name) [default: transparent]
 - [x] `cache` (any): browser / CDN cache buster (timestamp or random string); does not regenerate server-cached output
 - [x] `force` (bool): skip the server caches, regenerate, and replace the cached entries so later requests without `force` serve the fresh output; responds with `Cache-Control: no-store` and never returns 304
-- [x] `download` (string): attach a file to response (e.g. `download=image.png`) [default: _filename_], file extension overrides `f`
+- [x] `download` (string): attach a file to response (e.g. `download=image.png`) [default: _filename_]; the name only sets the `Content-Disposition` header, use `f` to pick the output format
 - [x] `original` (bool): return original image instead of processed one [default: false]
 - [x] `q`|`quality` (string / int): output quality (low, medium, high, maximum, 0..100) [default: ENV]
 - [x] `f`|`format` (string): output format (auto, jpg / jpeg, png, webp, gif, avif, jxl, pdf, svg) [default: auto]
@@ -97,7 +97,7 @@ Most parameters accept a short form and a long form; both are listed below and a
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
 - [x] `meta`|`metadata` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
 - [x] `fallback` (string): fallback image URL when original image is not found or processing fails
-- [x] `limit`|`limits`
+- [x] `limit`|`limits`: can only tighten the configured `output.max_width`, `output.max_height` and `output.max_size` caps, never raise them; 0 means no request limit
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`
 - [x] `thumb`|`thumbnail` (string): thumbnail parameters in format `thumb=page:1,2`
@@ -135,7 +135,7 @@ Most parameters accept a short form and a long form; both are listed below and a
   - [x] `grayscale` (bool): convert image to grayscale [default: false, range: 0..1]
   - [x] `sepia` (bool): apply sepia filter [default: false, range: 0..1]
   - [x] `invert` (bool): invert image colors [default: false, range: 0..1]
-  - [x] `blur` (float): apply Gaussian blur [default: 0, range: 0..n]
+  - [x] `blur` (int): apply Gaussian blur [default: 0, range: 0..n]
   - [x] `sharpen` (float): apply sharpening [default: 0, range: 0..10]
   - [x] `pixelate` (float): apply pixelation [default: 1, range: 1..n]
   - [x] `palette` (string): convert image to color palette (max. 2 colors - monochrome or duotone)

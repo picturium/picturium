@@ -121,8 +121,8 @@ background = "white"
 conversion_timeout = 30
 # Hard limit for a single LibreOffice run in seconds. After conversion_timeout the request
 # fails, but the conversion continues in the background to warm the cache until this limit
-# kills it. Must not be lower than conversion_timeout [default: 60]
-kill_timeout = 60
+# kills it. Must not be lower than conversion_timeout [default: 300]
+kill_timeout = 300
 
 
 [vector]

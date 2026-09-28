@@ -75,7 +75,7 @@ impl CacheStore {
         let mut builder = HybridCache::<String, Bytes>::builder()
             .with_name("picturium")
             .with_policy(HybridCachePolicy::WriteOnEviction)
-            .with_flush_on_close(false)
+            .with_flush_on_close(true)
             .memory(memory_limit)
             .with_weighter(|_, value: &Bytes| value.len())
             .with_filter(move |_, value: &Bytes| {
@@ -434,6 +434,18 @@ mod tests {
         assert_eq!(value, Bytes::from_static(b"disk value"));
         assert!(cache.inner.as_ref().unwrap().memory().get("key").is_none());
         assert_eq!(cache.get("key").await, Some(Bytes::from_static(b"disk value")));
+    }
+
+    #[tokio::test]
+    async fn memory_entries_survive_a_restart() {
+        let root = tempfile::tempdir().unwrap();
+        let cache = CacheStore::new(&config(root.path(), true, true)).await.unwrap();
+        cache.insert("key".into(), Bytes::from_static(b"hot value"));
+        cache.close().await;
+        drop(cache);
+
+        let cache = CacheStore::new(&config(root.path(), true, true)).await.unwrap();
+        assert_eq!(cache.get("key").await, Some(Bytes::from_static(b"hot value")));
     }
 
     #[tokio::test]

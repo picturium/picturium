@@ -17,8 +17,8 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn new(config: &SharedConfig, path: &str, params: &RequestParams) -> Result<Self> {
-        let path = format!("{}/{path}", config.data.dir);
+    pub fn new(config: &SharedConfig, requested: &str, params: &RequestParams) -> Result<Self> {
+        let path = format!("{}/{requested}", config.data.dir);
         let source_path = Self::get_path(&path, &config.data.dir);
 
         let source = match source_path {
@@ -33,7 +33,7 @@ impl Source {
                 tracing::info!("File not found: {}", path);
 
                 match params.fallback {
-                    Some(ref fallback) if fallback != &path => {
+                    Some(ref fallback) if fallback != requested => {
                         tracing::debug!("Trying fallback: {}", fallback);
 
                         Self::new(config, &fallback, params)
@@ -160,6 +160,19 @@ mod tests {
                 "{name} should be a vector source"
             );
         }
+    }
+
+    #[test]
+    fn missing_fallback_errors_instead_of_recursing() {
+        let root = tempfile::tempdir().unwrap();
+        let mut config = crate::config::Config::default();
+        config.data.dir = root.path().to_string_lossy().into_owned();
+        let params = RequestParams {
+            fallback: Some("missing.jpg".into()),
+            ..RequestParams::default()
+        };
+
+        assert!(Source::new(&std::sync::Arc::new(config), "also-missing.jpg", &params).is_err());
     }
 
     #[test]
