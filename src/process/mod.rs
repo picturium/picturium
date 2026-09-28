@@ -8,6 +8,7 @@ pub mod source;
 use crate::enums::download::Download;
 use crate::enums::force::Force;
 use crate::enums::input::InputFormat;
+use crate::multithreading::Worker;
 use crate::enums::output_format::{OutputFormat, get_output_extension, get_output_mime};
 use crate::params::RequestParams;
 use crate::params::parsed::Parameters;
@@ -77,12 +78,10 @@ pub async fn process_file(
             return unsupported_source(&source.path);
         }
 
-        let _permit = match acquire_permit(&state).await {
-            Ok(permit) => permit,
+        let _worker = match acquire_worker(&state, &uri).await {
+            Ok(worker) => worker,
             Err(response) => return response,
         };
-
-        let _guard = scopeguard::guard(state.multithreading.clone(), |mt| mt.release_worker());
 
         return serve_raw(&headers, &source.path, &parameters.download, cache_control, forced).await;
     }
@@ -129,12 +128,10 @@ pub async fn process_file(
     }
 
     if matches!(pipeline_request.output_format, OutputFormat::Pdf | OutputFormat::Svg) {
-        let _permit = match acquire_permit(&state).await {
-            Ok(permit) => permit,
+        let _worker = match acquire_worker(&state, &uri).await {
+            Ok(worker) => worker,
             Err(response) => return response,
         };
-
-        let _guard = scopeguard::guard(state.multithreading.clone(), |mt| mt.release_worker());
 
         return document::serve(
                 &headers,
@@ -157,6 +154,7 @@ pub async fn process_file(
 
     let render_state = state.clone();
     let render_headers = headers.clone();
+    let render_uri = uri.to_string();
     let result = render_response(&state.cache, cache_key, forced, move || async move {
         let mut pipeline_request = PipelineRequest::new(
             &render_headers,
@@ -166,7 +164,7 @@ pub async fn process_file(
             forced,
         );
 
-        render_raster(&mut pipeline_request).await
+        render_raster(&mut pipeline_request, render_uri).await
     }).await;
 
     let result = match result {
@@ -202,11 +200,8 @@ where
     }
 }
 
-async fn render_raster(request: &mut PipelineRequest<'_>) -> anyhow::Result<Bytes> {
-    let _permit = request.state.multithreading.get_permit().await.ok_or(WorkerQueueFull)?;
-    let _guard = scopeguard::guard(request.state.multithreading.clone(), |mt| {
-        mt.release_worker()
-    });
+async fn render_raster(request: &mut PipelineRequest<'_>, uri: String) -> anyhow::Result<Bytes> {
+    let _worker = request.state.multithreading.get_worker(uri).await.ok_or(WorkerQueueFull)?;
 
     debug!(
         "Output format: {:?}, through: {:?}",
@@ -236,9 +231,9 @@ fn negotiated_vary(parameters: &Parameters) -> Option<&'static str> {
     (parameters.format == OutputFormat::Auto).then_some("Accept")
 }
 
-async fn acquire_permit(state: &AppState) -> Result<tokio::sync::SemaphorePermit<'_>, Response> {
-    match state.multithreading.get_permit().await {
-        Some(permit) => Ok(permit),
+async fn acquire_worker<'a>(state: &'a AppState, uri: &Uri) -> Result<Worker<'a>, Response> {
+    match state.multithreading.get_worker(uri.to_string()).await {
+        Some(worker) => Ok(worker),
         None => Err(too_many_requests_response()),
     }
 }

@@ -28,7 +28,14 @@ struct Details {
     available_workers: usize,
     queue_size: usize,
     available_queue_size: usize,
+    active_jobs: Vec<ActiveJob>,
     memory: MemoryStats,
+}
+
+#[derive(Serialize)]
+struct ActiveJob {
+    uri: String,
+    running_seconds: u64,
 }
 
 #[derive(Serialize)]
@@ -84,6 +91,10 @@ pub async fn health_check(headers: HeaderMap, Query(query): Query<HealthQuery>, 
         available_workers,
         queue_size,
         available_queue_size,
+        active_jobs: state.multithreading.get_active_jobs()
+            .into_iter()
+            .map(|(uri, running)| ActiveJob { uri, running_seconds: running.as_secs() })
+            .collect(),
         memory: memory_stats(&state),
     });
 
