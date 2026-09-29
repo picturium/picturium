@@ -1,10 +1,16 @@
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
-use std::{path::Path, time::Duration};
-use tokio::process::Command;
+use std::{path::Path, sync::Arc, time::Duration};
+use tokio::{process::Command, sync::Semaphore};
 use tokio::{task::JoinHandle, time::timeout};
 
-pub(super) async fn convert_to_pdf(source_path: &Path, filter: Option<&str>, kill_timeout: Duration) -> Result<Bytes> {
+pub(super) async fn convert_to_pdf(
+    source_path: &Path,
+    filter: Option<&str>,
+    kill_timeout: Duration,
+    processes: Arc<Semaphore>,
+) -> Result<Bytes> {
+    let _permit = processes.acquire_owned().await.context("soffice process limiter closed")?;
     let output = tempfile::tempdir().context("Failed to create soffice output directory")?;
     
     let produced_pdf = output

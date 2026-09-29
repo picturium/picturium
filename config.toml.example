@@ -123,6 +123,10 @@ conversion_timeout = 30
 # fails, but the conversion continues in the background to warm the cache until this limit
 # kills it. Must not be lower than conversion_timeout [default: 300]
 kill_timeout = 300
+# Maximum number of LibreOffice processes running at once, including background conversions.
+# Further conversions wait for a free slot. Each process can take hundreds of MB of memory.
+# 0 = number of CPU threads [default: 0]
+max_processes = 0
 
 
 [vector]

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 use picturium_libvips::{Cache, Vips};
 use tracing::error;
 use crate::config::SharedConfig;
@@ -14,6 +15,7 @@ pub struct AppState {
     pub etag_seed: Arc<str>,
     pub cache: CacheStore,
     pub vips: Arc<Vips>,
+    pub soffice: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -22,8 +24,9 @@ impl AppState {
         let etag_seed = http_cache::seed(&config).into();
         let cache = CacheStore::new(&config).await?;
         let vips = Arc::new(init_vips(&config));
+        let soffice = Arc::new(Semaphore::new(config.office.process_limit()));
 
-        Ok(Self { config, multithreading, etag_seed, cache, vips })
+        Ok(Self { config, multithreading, etag_seed, cache, vips, soffice })
     }
 }
 

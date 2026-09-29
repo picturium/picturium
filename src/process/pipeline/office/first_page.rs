@@ -28,13 +28,18 @@ pub(super) async fn process(
     let first_source = source_path.clone();
     let cache = request.state.cache.clone();
     let full_cache = request.state.cache.clone();
+    let processes = request.state.soffice.clone();
+    let full_processes = processes.clone();
     
     let mut conversion = tokio::spawn(async move {
-        let convert = move || async move { convert_to_pdf(&first_source, Some(&filter), kill_timeout).await };
+        let convert = move || async move {
+            convert_to_pdf(&first_source, Some(&filter), kill_timeout, processes).await
+        };
+
         let result = cache.resolve(first_key, forced, convert).await;
 
         if result.is_ok() && full_cache.is_enabled() {
-            spawn_full_conversion(full_cache, full_key, source_path, forced, kill_timeout);
+            spawn_full_conversion(full_cache, full_key, source_path, forced, kill_timeout, full_processes);
         }
 
         result
