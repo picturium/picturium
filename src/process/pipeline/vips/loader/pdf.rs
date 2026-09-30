@@ -6,10 +6,12 @@ use crate::process::pipeline::vips::background::resolve_background;
 use crate::process::pipeline::vips::pages;
 use crate::services::size::calculate_load_size;
 use anyhow::{Result, anyhow};
+use lopdf::{Dictionary, Document, LoadOptions, Object, ObjectId};
 use picturium_libvips::{
     EmbedOptions, FromPdfOptions, VipsAccess, VipsAnimations, VipsCrop, VipsExtend, VipsImage,
     VipsOperations, arrayjoin,
 };
+use std::collections::HashSet;
 
 pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImage> {
     let (dpi, scale, page_pixels) = resolve_sizing(request, source_path)?;
@@ -18,7 +20,8 @@ pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImag
     // are recovered from the render scale instead of a shrink-on-load factor.
     request.source.shrink = 1.0 / scale;
 
-    let runs = page_runs(request.parameters.pages.as_deref().unwrap_or(&[1]));
+    let pages = request.parameters.pages.as_deref().unwrap_or(&[1]);
+    let runs = page_runs(pages);
     let random_access = runs.iter().map(|(_, count)| count).sum::<i32>() > 1;
 
     let max_pixels = request.state.config.pdf.max_image_pixels as f64 * 1_000_000.0;
@@ -27,6 +30,16 @@ pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImag
         return Err(RenderLimitExceeded(format!(
             "PDF page render of {:.1} Mpx exceeds pdf.max_image_pixels ({} Mpx)",
             page_pixels / 1_000_000.0,
+            request.state.config.pdf.max_image_pixels
+        )).into());
+    }
+
+    let image_pixels = largest_embedded_image(source_path, pages)?;
+
+    if image_pixels > max_pixels {
+        return Err(RenderLimitExceeded(format!(
+            "PDF embedded image of {:.1} Mpx exceeds pdf.max_image_pixels ({} Mpx)",
+            image_pixels / 1_000_000.0,
             request.state.config.pdf.max_image_pixels
         )).into());
     }
@@ -64,6 +77,54 @@ pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImag
         1 => Ok(loaded.pop().unwrap()),
         _ => join_runs(loaded, &background),
     }
+}
+
+fn largest_embedded_image(source_path: &str, pages: &[u32]) -> Result<f64> {
+    let document = Document::load_with_options(source_path, LoadOptions::with_filter(strip_stream_content))?;
+    let page_ids = document.get_pages();
+    let mut seen = HashSet::new();
+    let mut pending: Vec<&Dictionary> = Vec::new();
+    let mut largest = 0.0;
+
+    for page in pages {
+        let Some(&page_id) = page_ids.get(&(*page).max(1)) else { continue };
+        let (inline, referenced) = document.get_page_resources(page_id)?;
+        pending.extend(inline);
+        pending.extend(referenced.into_iter().filter_map(|id| document.get_dictionary(id).ok()));
+    }
+
+    while let Some(resources) = pending.pop() {
+        let Ok(xobjects) = resources.get_deref(b"XObject", &document).and_then(Object::as_dict) else { continue };
+
+        for (_, xobject) in xobjects.iter() {
+            let Ok(id) = xobject.as_reference() else { continue };
+
+            if !seen.insert(id) {
+                continue;
+            }
+
+            let Ok(dict) = document.get_dictionary(id) else { continue };
+            let dimension = |key: &[u8]| dict.get_deref(key, &document).and_then(Object::as_i64).unwrap_or(0).max(0) as f64;
+
+            match dict.get(b"Subtype").and_then(Object::as_name) {
+                Ok(b"Image") => largest = f64::max(largest, dimension(b"Width") * dimension(b"Height")),
+                Ok(b"Form") => pending.extend(dict.get_deref(b"Resources", &document).and_then(Object::as_dict)),
+                _ => {}
+            }
+        }
+    }
+
+    Ok(largest)
+}
+
+/// Keeps only stream dictionaries, so the parsed document doesn't hold a second copy of the file.
+fn strip_stream_content(id: ObjectId, object: &mut Object) -> Option<(ObjectId, Object)> {
+    // Object streams are unpacked after this filter runs, so their content must stay.
+    if let Object::Stream(stream) = object && !stream.dict.has_type(b"ObjStm") {
+        *object = Object::Dictionary(std::mem::take(&mut stream.dict));
+    }
+
+    Some((id, object.clone()))
 }
 
 /// Groups the requested 1-based pages into contiguous `(first 0-based page, count)` runs.
