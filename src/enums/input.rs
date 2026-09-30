@@ -136,6 +136,7 @@ pub fn get_input_mime(path: &Path) -> &'static str {
         "dotx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
         "dotm" => "application/vnd.ms-word.template.macroEnabled.12",
         "odt" => "application/vnd.oasis.opendocument.text",
+        "rtf" => "application/rtf",
         "ppt" => "application/vnd.ms-powerpoint",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "pptm" => "application/vnd.ms-powerpoint.presentation.macroEnabled.12",

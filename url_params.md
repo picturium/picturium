@@ -88,7 +88,7 @@ Most parameters accept a short form and a long form; both are listed below and a
   - only `webp` and `gif` can carry an animation; every other format gets the first frame. `gif` is not in the default `output.format_priority`, so `auto` never picks it
   - a file picturium cannot process as an image is served as-is when its extension is listed in `data.serve` (`["*"]` allows every file), otherwise 415
 - [x] `dpi` (int): default DPI for loading images (e.g. SVG images) (default: 72); a **vector** source is converted to PDF before it is loaded, so `dpi` applies to it exactly as it does to a PDF source; under `f=pdf` with an SVG source it sets the page scale instead, converting SVG pixels to PDF points at that DPI, so an SVG sized in absolute units (mm, in) keeps its physical size while one sized in pixels shrinks as the DPI rises
-- [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most 1000 pages; under `f=pdf` it selects the pages of the returned PDF instead
+- [x] `page`|`pages` (string): pages of the document to process, comma-separated with optional ranges (`1`, `1,2,3`, `1,4-7,9`) [default: 1], at most `pdf.max_pages` pages (512 by default); under `f=pdf` it selects the pages of the returned PDF instead
   - for an **animated** source the first value is the frame the animation starts at (`pages=3` drops the first two frames)
   - a **vector** source is converted to a PDF first, so `pages` selects pages of that PDF; Inkscape produces a single page for the formats it imports, so a selection other than `1` is normally out of range
   - a **video** source ignores it: a video is addressed by time with `t`, because a seek to a timestamp costs a keyframe interval where an exact frame number costs every frame before it
@@ -96,7 +96,7 @@ Most parameters accept a short form and a long form; both are listed below and a
   - when a position past the end of the video is specified, error 500 is returned
 - [x] `style` (string): apply custom CSS styles to SVG image, encode in base64; also applies under `f=pdf` with an SVG source
 - [x] `meta`|`metadata` (string): metadata to keep in output image; comma-separated values are combined (none, icc, exif, xmp, iptc, other, gainmap, all) (eg. `meta=icc,exif`) [default: `output.metadata`]
-- [x] `fallback` (string): fallback image URL when original image is not found or processing fails
+- [x] `fallback` (string): fallback image URL when original image is not found or processing fails; also rendered instead of a PDF that exceeds `pdf.max_file_size`, `pdf.max_pages` or `pdf.max_image_pixels`
 - [x] `limit`|`limits`: can only tighten the configured `output.max_width`, `output.max_height` and `output.max_size` caps, never raise them; 0 means no request limit
   - [x] `dimension` (int or `widthxheight`): maximum output image dimensions in pixels; a single value caps both axes, `800x600` caps each separately, `x600` / `800x` cap only the given axis; the output is scaled down keeping the aspect ratio (default: `output.max_width` / `output.max_height`, 0 = unlimited)
   - [x] `size` (int): maximum output image size in bytes, or with a binary unit suffix (`500K`, `2M`, `1.5MiB`) (default: `output.max_size`, 0 = unlimited); the image is re-encoded at a lower quality until it fits, bounded by `output.max_size_threshold` and `output.max_size_attempts`

@@ -105,7 +105,7 @@ impl Source {
             "bmp" => InputFormat::Vips(VipsInputFormat::Bmp),
             "raw" | "rw2" | "raf" | "pef" | "orf" | "nrw" | "nef" | "dng" | "cr2" | "cr3"
             | "crw" | "arw" => InputFormat::Vips(VipsInputFormat::Raw),
-            "doc" | "docx" | "odt" | "docm" | "dotx" | "dotm" => {
+            "doc" | "docx" | "odt" | "rtf" | "docm" | "dotx" | "dotm" => {
                 InputFormat::Office(OfficeInputFormat::Doc)
             }
             "ppt" | "pptx" | "odp" | "pptm" | "potx" | "potm" => {

@@ -7,7 +7,7 @@ mod cache;
 pub mod encoder;
 pub mod quality;
 mod svg;
-mod pdf;
+pub mod pdf;
 mod image;
 pub mod watermark;
 pub mod output;

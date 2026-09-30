@@ -1,5 +1,6 @@
 use crate::enums::dpi::Dpi;
 use crate::params::background::Background;
+use crate::process::pipeline::RenderLimitExceeded;
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::background::resolve_background;
 use crate::process::pipeline::vips::pages;
@@ -11,7 +12,7 @@ use picturium_libvips::{
 };
 
 pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImage> {
-    let (dpi, scale) = resolve_sizing(request, source_path)?;
+    let (dpi, scale, page_pixels) = resolve_sizing(request, source_path)?;
 
     // The page is rendered straight to the target size, so the source dimensions
     // are recovered from the render scale instead of a shrink-on-load factor.
@@ -19,6 +20,17 @@ pub fn load(request: &mut PipelineRequest, source_path: &str) -> Result<VipsImag
 
     let runs = page_runs(request.parameters.pages.as_deref().unwrap_or(&[1]));
     let random_access = runs.iter().map(|(_, count)| count).sum::<i32>() > 1;
+
+    let max_pixels = request.state.config.pdf.max_image_pixels as f64 * 1_000_000.0;
+
+    if page_pixels > max_pixels {
+        return Err(RenderLimitExceeded(format!(
+            "PDF page render of {:.1} Mpx exceeds pdf.max_image_pixels ({} Mpx)",
+            page_pixels / 1_000_000.0,
+            request.state.config.pdf.max_image_pixels
+        )).into());
+    }
+
     let background = pdf_background(
         request.parameters.background,
         &request.state.config.pdf.background,
@@ -115,16 +127,18 @@ fn pdf_background(requested: Option<Background>, configured: &str) -> [f64; 4] {
     resolve_background(requested.or(Some(configured)))
 }
 
-fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64)> {
+/// Returns `(dpi, scale, rendered pixels of the first page)`.
+fn resolve_sizing(request: &PipelineRequest, source_path: &str) -> Result<(f64, f64, f64)> {
     let dpi = match request.parameters.dpi {
         Dpi::Auto => request.state.config.pdf.load_dpi as f64,
         Dpi::Value(value) => value as f64,
     };
 
-    Ok((dpi, resolve_scale(request, dpi, source_path)?))
+    let (scale, page_pixels) = resolve_scale(request, dpi, source_path)?;
+    Ok((dpi, scale, page_pixels))
 }
 
-fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Result<f64> {
+fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Result<(f64, f64)> {
     let image = VipsImage::new_from_pdf(
         source_path,
         Some(FromPdfOptions {
@@ -137,14 +151,17 @@ fn resolve_scale(request: &PipelineRequest, dpi: f64, source_path: &str) -> Resu
 
     let (process_width, process_height) = calculate_load_size(request, &image);
 
-    let (width, height) = (image.get_width() as u16, image.get_height() as u16);
+    let (width, height) = (image.get_width() as f64, image.get_height() as f64);
 
     let scaling = vec![
-        process_width as f64 / width as f64,
-        process_height as f64 / height as f64,
+        process_width as f64 / width,
+        process_height as f64 / height,
     ];
 
-    Ok(scaling.into_iter().reduce(f64::max).unwrap_or(1.0))
+    let scale = scaling.into_iter().reduce(f64::max).unwrap_or(1.0);
+    let page_pixels = width * height * scale * scale;
+
+    Ok((scale, page_pixels))
 }
 
 #[cfg(test)]

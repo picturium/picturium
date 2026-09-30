@@ -13,7 +13,7 @@ mod watermark;
 
 use crate::process::pipeline::request::PipelineRequest;
 use crate::process::pipeline::vips::finish::finish_image;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use picturium_libvips::VipsImage;
 
 /// Run the vips image pipeline on the given source path.
@@ -21,10 +21,7 @@ use picturium_libvips::VipsImage;
 /// formats) or to a temporary intermediate file produced by a pre-pipeline
 /// (video / office).
 pub fn process(request: &mut PipelineRequest, source_path: &str) -> Result<Vec<u8>> {
-    let mut image = match loader::load_file(request, source_path) {
-        Ok(file) => file,
-        Err(e) => return Err(anyhow::anyhow!("Failed to load file: {:?}", e)),
-    };
+    let mut image = loader::load_file(request, source_path).context("Failed to load file")?;
 
     image = autorotate::process(request, image)?;
     image = rotate::process(request, image)?;

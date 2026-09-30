@@ -123,6 +123,15 @@ load_dpi = 72
 # Background used when rasterizing PDF and Office document pages to images.
 # A request `bg`/`background` parameter overrides it [default: "white"].
 background = "white"
+# PDFs larger than this many MiB are not rendered; the original file is served
+# as-is instead [default: 256]
+max_file_size = 256
+# Maximum number of pages a single request may select (`page`|`pages`), at most
+# 65535 [default: 512]
+max_pages = 512
+# Refuse to render when the first page (width × height at the render scale)
+# would exceed this many megapixels [default: 64]
+max_image_pixels = 64
 
 
 [office]

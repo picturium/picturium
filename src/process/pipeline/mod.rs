@@ -5,6 +5,8 @@ pub(crate) mod vector;
 mod video;
 mod vips;
 
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use crate::enums::input::InputFormat;
 use crate::process::pipeline::request::PipelineRequest;
 use anyhow::{Context, Result};
@@ -45,6 +47,17 @@ impl ResolvedSource {
         &self.path
     }
 }
+
+#[derive(Debug)]
+pub struct RenderLimitExceeded(pub String);
+
+impl Display for RenderLimitExceeded {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl Error for RenderLimitExceeded {}
 
 /// Resolve the source path, running async pre-pipelines (office, video, vector) as needed.
 pub async fn resolve_source_path(request: &PipelineRequest<'_>) -> Result<ResolvedSource> {

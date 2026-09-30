@@ -3,7 +3,7 @@ use std::str::FromStr;
 use serde::{de, Deserialize, Deserializer};
 use serde::de::Visitor;
 
-const MAX_PAGES: usize = 1000;
+pub const MAX_PAGE_SELECTION: usize = 65_535;
 
 #[derive(Debug, Clone, Default)]
 pub struct Pages(pub Vec<u32>);
@@ -35,8 +35,8 @@ pub fn parse_pages(value: &str) -> Result<Vec<u32>, PagesParseError> {
             return Err(PagesParseError(format!("Page range must ascend, got '{part}'")));
         }
 
-        if pages.len() + (last - first + 1) as usize > MAX_PAGES {
-            return Err(PagesParseError(format!("Page selection must be at most {MAX_PAGES} pages")));
+        if pages.len() + (last - first + 1) as usize > MAX_PAGE_SELECTION {
+            return Err(PagesParseError(format!("Page selection must be at most {MAX_PAGE_SELECTION} pages")));
         }
 
         pages.extend(first..=last);
@@ -115,9 +115,9 @@ mod tests {
 
     #[test]
     fn rejects_a_selection_larger_than_the_cap() {
-        assert_eq!(parse_pages(&format!("1-{MAX_PAGES}")).unwrap().len(), MAX_PAGES);
-        assert!(parse_pages(&format!("1-{}", MAX_PAGES + 1)).is_err());
-        assert!(parse_pages(&format!("1,1-{MAX_PAGES}")).is_err());
+        assert_eq!(parse_pages(&format!("1-{MAX_PAGE_SELECTION}")).unwrap().len(), MAX_PAGE_SELECTION);
+        assert!(parse_pages(&format!("1-{}", MAX_PAGE_SELECTION + 1)).is_err());
+        assert!(parse_pages(&format!("1,1-{MAX_PAGE_SELECTION}")).is_err());
         assert!(parse_pages(&format!("1-{}", u32::MAX)).is_err());
     }
 }

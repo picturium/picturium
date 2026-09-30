@@ -18,7 +18,7 @@ Picturium sits in front of your images (and documents, and videos) and transform
 
 ## Features
 
-- **Broad input support** — JPEG, PNG, WebP, AVIF, GIF, TIFF, JXL, HEIF, ICO, BMP, JPEG2000, SVG, PDF, EPS/AI/CDR/DXF (via Inkscape), PSD, RAW (CR2, CR3, ARW, DNG, NEF, RAF, ORF, RW2, PEF, NRW, CRW), Office documents (DOC, PPT, XLS, via LibreOffice), and video (MP4, WebM, MKV, MOV, AVI, and more)
+- **Broad input support** — JPEG, PNG, WebP, AVIF, GIF, TIFF, JXL, HEIF, ICO, BMP, JPEG2000, SVG, PDF, EPS/AI/CDR/DXF (via Inkscape), PSD, RAW (CR2, CR3, ARW, DNG, NEF, RAF, ORF, RW2, PEF, NRW, CRW), Office documents (DOC, RTF, PPT, XLS, via LibreOffice), and video (MP4, WebM, MKV, MOV, AVI, and more)
 - **Modern output formats** — JPEG, PNG, WebP, AVIF, GIF, and JPEG XL, with per-format quality curves and encoder tuning; PDF/SVG passthrough for document sources
 - **Full transform pipeline** — resize, crop, aspect ratio, padding, rotation, smart gravity (including attention/entropy-based auto-crop), background fill, DPI, and output quality/size limits with automatic re-encode
 - **Animation & video** — frame extraction, clip extraction, frame rate/timing/loop control, and stride sampling, for animated GIF/WebP/AVIF/HEIC sequences and video sources alike

@@ -5,9 +5,10 @@ pub mod pipeline;
 mod raw;
 pub mod source;
 
+use crate::config::pdf::PdfConfig;
 use crate::enums::download::Download;
 use crate::enums::force::Force;
-use crate::enums::input::InputFormat;
+use crate::enums::input::{InputFormat, VipsInputFormat};
 use crate::multithreading::Worker;
 use crate::enums::output_format::{OutputFormat, get_output_extension, get_output_mime};
 use crate::params::RequestParams;
@@ -22,6 +23,7 @@ use axum::http::{HeaderMap, StatusCode, Uri, header};
 use axum::response::Response;
 use bytes::Bytes;
 use download::apply_disposition;
+use pipeline::RenderLimitExceeded;
 use pipeline::request::PipelineRequest;
 use std::future::Future;
 use std::path::Path as FileSystemPath;
@@ -59,6 +61,7 @@ pub async fn process_file(
     };
 
     let forced = params.force == Some(Force::True);
+    let fallback = params.fallback.clone();
     let parameters = Parameters::new(&state.config, params);
     
     let cache_control = if forced {
@@ -67,10 +70,20 @@ pub async fn process_file(
         state.config.cache.cache_control.as_str()
     };
     
-    let passthrough = parameters.original == true || matches!(source.format, InputFormat::Unsupported);
+    let exceeds_page_limit = renders_as_pdf(&source) && parameters.pages.as_ref().is_some_and(|pages| pages.len() > state.config.pdf.max_pages);
+    let mut oversized = oversized_pdf(&state.config.pdf, &source).await;
+
+    if (exceeds_page_limit || oversized) && let Some(fallback) = fallback_source(&state, fallback.as_deref()) {
+        source = fallback;
+        oversized = oversized_pdf(&state.config.pdf, &source).await;
+    } else if exceeds_page_limit {
+        return bad_request(format!("Page selection must be at most {} pages", state.config.pdf.max_pages));
+    }
+
+    let passthrough = parameters.original == true || oversized || matches!(source.format, InputFormat::Unsupported);
 
     if passthrough {
-        if parameters.original != true && !state.config.data.may_serve(&source.path) {
+        if parameters.original != true && !oversized && !state.config.data.may_serve(&source.path) {
             debug!(
                 "Refusing to serve unprocessable file {}",
                 source.path.display()
@@ -156,15 +169,28 @@ pub async fn process_file(
     let render_headers = headers.clone();
     let render_uri = uri.to_string();
     let result = render_response(&state.cache, cache_key, forced, move || async move {
-        let mut pipeline_request = PipelineRequest::new(
-            &render_headers,
-            &render_state,
-            &mut source,
-            &parameters,
-            forced,
-        );
+        let render = |source: Source| {
+            let (headers, state, parameters, uri) = (&render_headers, &render_state, &parameters, render_uri.clone());
 
-        render_raster(&mut pipeline_request, render_uri).await
+            async move {
+                let mut source = source;
+                let mut pipeline_request = PipelineRequest::new(headers, state, &mut source, parameters, forced);
+                render_raster(&mut pipeline_request, uri).await
+            }
+        };
+
+        match render(source).await {
+            Err(error) if error.chain().any(|cause| cause.is::<RenderLimitExceeded>()) => {
+                match fallback_source(&render_state, fallback.as_deref()) {
+                    Some(fallback) => {
+                        debug!("{error:#}, rendering fallback instead");
+                        render(fallback).await
+                    }
+                    None => Err(error),
+                }
+            }
+            result => result,
+        }
     }).await;
 
     let result = match result {
@@ -236,6 +262,33 @@ async fn acquire_worker<'a>(state: &'a AppState, uri: &Uri) -> Result<Worker<'a>
         Some(worker) => Ok(worker),
         None => Err(too_many_requests_response()),
     }
+}
+
+fn fallback_source(state: &AppState, fallback: Option<&str>) -> Option<Source> {
+    Source::new(&state.config, fallback?, &Default::default()).ok()
+}
+
+fn renders_as_pdf(source: &Source) -> bool {
+    matches!(source.format, InputFormat::Vips(VipsInputFormat::Pdf) | InputFormat::Office(_) | InputFormat::Vector(_))
+}
+
+async fn oversized_pdf(config: &PdfConfig, source: &Source) -> bool {
+    if !matches!(source.format, InputFormat::Vips(VipsInputFormat::Pdf)) {
+        return false;
+    }
+
+    tokio::fs::metadata(&source.path)
+        .await
+        .is_ok_and(|metadata| metadata.len() > config.max_file_size.saturating_mul(1024 * 1024))
+}
+
+fn bad_request(message: String) -> Response {
+    Response::builder()
+        .status(StatusCode::BAD_REQUEST)
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .header(header::CACHE_CONTROL, http_cache::NO_STORE)
+        .body(Body::from(message))
+        .unwrap()
 }
 
 fn too_many_requests_response() -> Response {
