@@ -40,7 +40,11 @@ fn init_vips(config: &SharedConfig) -> Vips {
     };
 
     app.concurrency(config.vips.concurrency);
-    app.cache(Cache::default());
+    app.cache(Cache::new(
+        config.vips.cache_max_ops,
+        config.vips.cache_max_mem * 1024 * 1024,
+        config.vips.cache_max_files,
+    ));
 
     if config.vips.debug {
         app.check_leaks();

@@ -50,6 +50,15 @@ allowed_origins = ["*"]
 debug = false
 # Number of libvips threads [default: 1]
 concurrency = 1
+# libvips operation cache limits. A cached loader keeps its source file open
+# (e.g. a poppler document for PDFs). The response cache already covers repeated
+# requests, so set all three to 0 on small machines.
+# Maximum operation cache memory in MiB [default: 100]
+cache_max_mem = 100
+# Maximum files held open by the operation cache [default: 100]
+cache_max_files = 100
+# Maximum cached operations [default: 100]
+cache_max_ops = 100
 
 
 [data]

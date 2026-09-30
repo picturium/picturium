@@ -36,7 +36,7 @@ pub async fn process_file(
     Path(file_path): Path<String>,
     Query(params): Query<RequestParams>,
 ) -> Response {
-    if !verify_signature(&state.config, &uri) {
+    if !verify_signature(&state.config, &file_path, uri.query()) {
         return Response::builder()
             .status(StatusCode::FORBIDDEN)
             .header(header::CACHE_CONTROL, http_cache::NO_STORE)
